@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Para este protótipo, liberamos acesso para facilitar o desenvolvimento
+    // e permitir a simulação de login via Firestore sem Firebase Auth.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
