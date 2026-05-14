@@ -1143,22 +1143,22 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
         <div className="mt-6 flex flex-col sm:flex-row gap-2">
           <button 
             onClick={() => onOpenMedia('video')}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-colors shadow-sm active:scale-95 ${
+            className={`flex flex-[2] items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-colors shadow-sm active:scale-95 ${
               isCompleted 
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
                 : 'bg-[#3B82F6] text-white hover:bg-[#2563EB]'
             }`}
           >
-            <Play size={16} />
-            {isCompleted ? 'Reassistir' : 'Assistir'}
+            <Play size={18} />
+            {isCompleted ? 'Reassistir' : 'Iniciar Aula'}
           </button>
           <button 
             onClick={() => onOpenMedia('pdf')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200 transition-colors active:scale-95 shadow-sm"
-            title="Visualizar PDF"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-100 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-200 transition-colors active:scale-95 shadow-sm"
+            title="Ver Material de Apoio"
           >
-            <Download size={16} />
-            Baixar PDF
+            <FileText size={18} />
+            <span className="sm:hidden lg:inline">Material</span>
           </button>
         </div>
       </div>
@@ -1792,10 +1792,16 @@ const MediaModal: React.FC<{
   course: Course | null, 
   onClose: () => void,
   onPrev?: () => void,
-  onNext?: () => void
-}> = ({ isOpen, type, course, onClose, onPrev, onNext }) => {
+  onNext?: () => void,
+  onTypeChange?: (type: 'video' | 'pdf') => void
+}> = ({ isOpen, type, course, onClose, onPrev, onNext, onTypeChange }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const [playbackRate, setPlaybackRate] = React.useState(1);
+  const [currentTab, setCurrentTab] = useState<'video' | 'pdf'>(type || 'video');
+
+  useEffect(() => {
+    if (type) setCurrentTab(type);
+  }, [type]);
 
   if (!course) return null;
 
@@ -1840,107 +1846,150 @@ const MediaModal: React.FC<{
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-full sm:max-w-[95vw] lg:max-w-[90vw] overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[95vh]"
           >
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-white">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${type === 'video' ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
-                  {type === 'video' ? <Play size={20} /> : <FileText size={20} />}
+                <div className={`p-2 rounded-lg ${currentTab === 'video' ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+                  {currentTab === 'video' ? <Play size={20} /> : <FileText size={20} />}
                 </div>
                 <div className="max-w-[150px] sm:max-w-[300px] lg:max-w-none">
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{course.title}</h3>
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                    {course.system} • {type === 'video' ? 'Vídeo Aula' : 'Material PDF'}
-                  </p>
+                  <h3 className="text-base sm:text-xl font-bold text-slate-900 truncate">{course.title}</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] text-[#3B82F6] font-bold uppercase tracking-wider">{course.system}</span>
+                    <span className="text-slate-300">•</span>
+                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                      {currentTab === 'video' ? 'Vídeo Aula' : 'Material PDF'}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <button 
-                onClick={onClose} 
-                className="p-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors"
-                aria-label="Fechar"
-              >
-                <X size={24} />
-              </button>
+              
+              <div className="flex items-center gap-2">
+                {/* Tabs de Alternância Rápida */}
+                <div className="hidden sm:flex bg-slate-100 p-1 rounded-xl mr-2">
+                  <button 
+                    onClick={() => setCurrentTab('video')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currentTab === 'video' ? 'bg-white text-[#3B82F6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Vídeo
+                  </button>
+                  <button 
+                    onClick={() => setCurrentTab('pdf')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currentTab === 'pdf' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    PDF
+                  </button>
+                </div>
+
+                <button 
+                  onClick={onClose} 
+                  className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
+                  aria-label="Fechar"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 bg-slate-900 overflow-hidden relative group min-h-[400px]">
-              {type === 'video' ? (
-                <div className="w-full h-full flex flex-col items-center justify-center aspect-video m-auto bg-black relative">
-                  {videoSrc && (videoSrc.startsWith('blob:') || !videoSrc.includes('youtube.com')) ? (
-                    <>
-                      <video 
-                        key={videoSrc}
-                        ref={videoRef}
-                        src={videoSrc} 
-                        className="w-full h-full max-h-full" 
-                        controls 
-                        autoPlay 
-                      />
-                      {/* Custom Controls Overlay */}
-                      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 backdrop-blur-md px-6 py-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-10 shadow-2xl">
-                        <button 
-                          onClick={() => handleSeek(-10)}
-                          className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
-                          title="Voltar 10s"
-                        >
-                          <Rewind size={20} />
-                        </button>
-                        
-                        <div className="h-6 w-px bg-white/20" />
-                        
-                        <div className="flex items-center gap-1">
-                          {[1, 1.5, 2].map(rate => (
-                            <button
-                              key={rate}
-                              onClick={() => handleRateChange(rate)}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                playbackRate === rate ? 'bg-[#3B82F6] text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
-                              }`}
-                            >
-                              {rate}x
-                            </button>
-                          ))}
-                        </div>
+            <div className="flex-1 bg-slate-900 overflow-hidden relative group min-h-[300px] flex flex-col">
+              {/* Tabs Mobile */}
+              <div className="sm:hidden flex border-b border-white/5 bg-slate-900">
+                <button 
+                  onClick={() => setCurrentTab('video')}
+                  className={`flex-1 py-3 text-center text-xs font-bold border-b-2 transition-colors ${currentTab === 'video' ? 'border-[#3B82F6] text-[#3B82F6]' : 'border-transparent text-slate-500'}`}
+                >
+                  ASSISTIR VÍDEO
+                </button>
+                <button 
+                  onClick={() => setCurrentTab('pdf')}
+                  className={`flex-1 py-3 text-center text-xs font-bold border-b-2 transition-colors ${currentTab === 'pdf' ? 'border-red-500 text-red-500' : 'border-transparent text-slate-500'}`}
+                >
+                  MATERIAL PDF
+                </button>
+              </div>
 
-                        <div className="h-6 w-px bg-white/20" />
-
-                        <button 
-                          onClick={() => handleSeek(10)}
-                          className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
-                          title="Avançar 10s"
-                        >
-                          <FastForward size={20} />
-                        </button>
-                      </div>
-                    </>
-                  ) : videoSrc ? (
-                    <iframe 
-                      src={videoSrc} 
-                      className="w-full h-full border-0 max-h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      title="Vídeo Aula"
-                    ></iframe>
-                  ) : (
-                    <div className="text-center p-12">
-                      <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#3B82F6] text-white mb-6 animate-pulse">
-                        <Play size={40} fill="currentColor" />
-                      </div>
-                      <h4 className="text-2xl font-bold text-white mb-2">Reproduzindo Vídeo Aula</h4>
-                      <p className="text-slate-400 max-w-md mx-auto">
-                        Simulação de player de vídeo para o procedimento: {course.title}.
-                      </p>
-                      <div className="mt-8 w-full max-w-lg bg-slate-800 h-2 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: '65%' }}
-                          transition={{ duration: 10, repeat: Infinity }}
-                          className="h-full bg-[#3B82F6]"
+              <div className="flex-1 relative overflow-hidden flex flex-col">
+                {currentTab === 'video' ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center aspect-video m-auto bg-black relative">
+                    {videoSrc && (videoSrc.startsWith('blob:') || !videoSrc.includes('youtube.com')) ? (
+                      <>
+                        <video 
+                          key={videoSrc}
+                          ref={videoRef}
+                          src={videoSrc} 
+                          className="w-full h-full object-contain" 
+                          controls 
+                          autoPlay 
                         />
+                        {/* Custom Controls Overlay */}
+                        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-3 bg-black/70 backdrop-blur-xl px-4 sm:px-5 py-2 sm:py-2.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-10 shadow-2xl scale-90 sm:scale-100">
+                          <button 
+                            onClick={() => handleSeek(-10)}
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                            title="Voltar 10s"
+                          >
+                            <Rewind size={18} />
+                          </button>
+                          
+                          <div className="h-5 w-px bg-white/10" />
+                          
+                          <div className="flex items-center gap-0.5">
+                            {[1, 1.5, 2].map(rate => (
+                              <button
+                                key={rate}
+                                onClick={() => handleRateChange(rate)}
+                                className={`px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
+                                  playbackRate === rate ? 'bg-[#3B82F6] text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                {rate}x
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="h-5 w-px bg-white/10" />
+
+                          <button 
+                            onClick={() => handleSeek(10)}
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                            title="Avançar 10s"
+                          >
+                            <FastForward size={18} />
+                          </button>
+
+                          <div className="h-5 w-px bg-white/10" />
+
+                          <a 
+                            href={videoSrc || '#'}
+                            download={`${course.title}.mp4`}
+                            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                            title="Baixar Vídeo"
+                          >
+                            <Download size={18} />
+                          </a>
+                        </div>
+                      </>
+                    ) : videoSrc ? (
+                      <iframe 
+                        src={videoSrc} 
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title="Vídeo Aula"
+                      ></iframe>
+                    ) : (
+                      <div className="text-center p-8">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#3B82F6] text-white mb-4 animate-pulse">
+                          <Play size={32} fill="currentColor" />
+                        </div>
+                        <h4 className="text-xl font-bold text-white mb-2">Vídeo não disponível</h4>
+                        <p className="text-slate-400 text-sm max-w-xs mx-auto">
+                          Este conteúdo ainda não possuí um vídeo anexado.
+                        </p>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 overflow-y-auto">
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 overflow-y-auto min-h-full">
                   {pdfSrc ? (
                     <iframe 
                       src={pdfSrc} 
@@ -2025,62 +2074,49 @@ const MediaModal: React.FC<{
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="p-6 bg-white border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center bg-slate-50/50">
-              <div className="flex items-center gap-6 w-full sm:w-auto">
+          <div className="p-4 sm:p-6 bg-white border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <button 
                   onClick={onPrev}
                   disabled={!onPrev}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all border ${
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold transition-all border text-sm ${
                     onPrev 
                       ? 'text-[#3B82F6] border-blue-200 bg-white hover:bg-blue-50 hover:border-blue-300' 
                       : 'text-slate-300 border-slate-100 bg-slate-50 cursor-not-allowed'
                   }`}
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={18} />
                   Anterior
                 </button>
                 <button 
                   onClick={onNext}
                   disabled={!onNext}
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold transition-all text-sm ${
                     onNext 
                       ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-[#3B82F6]/20' 
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   }`}
                 >
                   Próximo
-                  <ChevronRight size={20} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
 
-              <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
-                <div className="hidden lg:flex items-center gap-4 mr-4">
-                  <div className="flex items-center gap-1 text-slate-500 text-sm font-medium">
-                    <Clock size={16} />
-                    <span>{course.duration}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-slate-500 text-sm font-medium">
-                    <BarChart size={16} />
-                    <span>{course.difficulty}</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={onClose}
-                  className="px-6 py-3 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  Fechar
-                </button>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <a 
-                  href={type === 'video' ? (videoSrc || '#') : (pdfSrc || '#')}
-                  download={type === 'video' ? (isVideoBlob ? `${course.title}.mp4` : false) : (pdfSrc ? `${course.title}.pdf` : false)}
-                  className={`px-6 py-3 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 ${
-                    (type === 'video' ? videoSrc : pdfSrc)
-                      ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-blue-100'
+                  href={currentTab === 'video' ? (videoSrc || '#') : (pdfSrc || '#')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={currentTab === 'video' ? (isVideoBlob ? `${course.title}.mp4` : false) : (pdfSrc ? `${course.title}.pdf` : false)}
+                  className={`flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-sm ${
+                    (currentTab === 'video' ? videoSrc : pdfSrc)
+                      ? 'bg-slate-900 text-white hover:bg-black shadow-slate-200'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                   }`}
                 >
-                  <Download size={18} /> {type === 'video' ? 'Baixar' : 'PDF'}
+                  <Download size={18} /> {currentTab === 'video' ? 'Baixar Aula' : 'Download PDF'}
                 </a>
               </div>
             </div>
