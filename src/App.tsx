@@ -1067,7 +1067,10 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
       }`}
     >
       {/* Thumbnail */}
-      <div className="relative aspect-video overflow-hidden">
+      <div 
+        className="relative aspect-video overflow-hidden cursor-pointer"
+        onClick={() => onOpenMedia('video')}
+      >
         <img 
           src={course.thumbnail} 
           alt={course.title} 
@@ -1101,6 +1104,11 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           }`}>
             {course.system}
           </span>
+          {course.pdfUrl && (
+            <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-white/90 text-slate-900 shadow-sm flex items-center gap-1">
+              <FileText size={10} /> PDF
+            </span>
+          )}
           {isCompleted && (
             <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm bg-emerald-500">
               Concluído
@@ -1798,18 +1806,69 @@ const MediaModal: React.FC<{
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const [playbackRate, setPlaybackRate] = React.useState(1);
   const [currentTab, setCurrentTab] = useState<'video' | 'pdf'>(type || 'video');
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
 
   useEffect(() => {
-    if (type) setCurrentTab(type);
-  }, [type]);
+    // Inteligência para selecionar a aba inicial baseada no conteúdo disponível
+    if (course) {
+      const hasVideo = course.videoUrl && course.videoUrl !== "" && !course.videoUrl.startsWith('file://');
+      const hasPdf = course.pdfUrl && course.pdfUrl !== "" && !course.pdfUrl.startsWith('file://');
+
+      if (type === 'video' && !hasVideo && hasPdf) {
+        setCurrentTab('pdf');
+      } else if (type === 'pdf' && !hasPdf && hasVideo) {
+        setCurrentTab('video');
+      } else {
+        setCurrentTab(type || (hasVideo ? 'video' : (hasPdf ? 'pdf' : 'video')));
+      }
+    }
+    setIsPlaying(true);
+  }, [type, course]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+        setIsPlaying(true);
+      } else {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    if (videoRef.current) {
+      videoRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   if (!course) return null;
 
   const isVideoBlob = course.videoUrl?.startsWith('blob:');
   const isPdfBlob = course.pdfUrl?.startsWith('blob:');
-
-  // Exemplo de vídeo caso não tenha um link oficial
-  const SAMPLE_VIDEO = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
   const videoSrc = isVideoBlob 
     ? course.videoUrl 
@@ -1817,7 +1876,7 @@ const MediaModal: React.FC<{
         ? (course.videoUrl.includes('youtube.com') || course.videoUrl.includes('youtu.be')
             ? course.videoUrl.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')
             : course.videoUrl)
-        : SAMPLE_VIDEO);
+        : null);
     
   const pdfSrc = course.pdfUrl && !course.pdfUrl.startsWith('file://') 
     ? course.pdfUrl 
@@ -1848,8 +1907,8 @@ const MediaModal: React.FC<{
           >
             <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-white">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${currentTab === 'video' ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
-                  {currentTab === 'video' ? <Play size={20} /> : <FileText size={20} />}
+                <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                  <GraduationCap size={20} />
                 </div>
                 <div className="max-w-[150px] sm:max-w-[300px] lg:max-w-none">
                   <h3 className="text-base sm:text-xl font-bold text-slate-900 truncate">{course.title}</h3>
@@ -1857,29 +1916,13 @@ const MediaModal: React.FC<{
                     <span className="text-[10px] text-[#3B82F6] font-bold uppercase tracking-wider">{course.system}</span>
                     <span className="text-slate-300">•</span>
                     <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                      {currentTab === 'video' ? 'Vídeo Aula' : 'Material PDF'}
+                      Aula Completa
                     </p>
                   </div>
                 </div>
               </div>
               
               <div className="flex items-center gap-2">
-                {/* Tabs de Alternância Rápida */}
-                <div className="hidden sm:flex bg-slate-100 p-1 rounded-xl mr-2">
-                  <button 
-                    onClick={() => setCurrentTab('video')}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currentTab === 'video' ? 'bg-white text-[#3B82F6] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Vídeo
-                  </button>
-                  <button 
-                    onClick={() => setCurrentTab('pdf')}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currentTab === 'pdf' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    PDF
-                  </button>
-                </div>
-
                 <button 
                   onClick={onClose} 
                   className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
@@ -1890,191 +1933,166 @@ const MediaModal: React.FC<{
               </div>
             </div>
 
-            <div className="flex-1 bg-slate-900 overflow-hidden relative group min-h-[300px] flex flex-col">
-              {/* Tabs Mobile */}
-              <div className="sm:hidden flex border-b border-white/5 bg-slate-900">
-                <button 
-                  onClick={() => setCurrentTab('video')}
-                  className={`flex-1 py-3 text-center text-xs font-bold border-b-2 transition-colors ${currentTab === 'video' ? 'border-[#3B82F6] text-[#3B82F6]' : 'border-transparent text-slate-500'}`}
-                >
-                  ASSISTIR VÍDEO
-                </button>
-                <button 
-                  onClick={() => setCurrentTab('pdf')}
-                  className={`flex-1 py-3 text-center text-xs font-bold border-b-2 transition-colors ${currentTab === 'pdf' ? 'border-red-500 text-red-500' : 'border-transparent text-slate-500'}`}
-                >
-                  MATERIAL PDF
-                </button>
-              </div>
+            <div className="flex-1 bg-white overflow-hidden relative flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto scroll-smooth">
+                {/* Unified Content View */}
+                {!videoSrc && !pdfSrc ? (
+                  <div className="flex flex-col items-center justify-center p-12 sm:p-20 text-center">
+                    <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-6">
+                      <GraduationCap size={40} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">Conteúdo em construção</h3>
+                    <p className="text-slate-500 max-w-md">Esta aula ainda não possui vídeo ou material PDF anexado.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    {/* Video Section */}
+                    {videoSrc && (
+                      <div id="video-section" className="bg-slate-900 w-full">
+                        <div className="max-w-6xl mx-auto w-full aspect-video relative group flex items-center justify-center">
+                          {videoSrc.startsWith('blob:') || !videoSrc.includes('youtube.com') ? (
+                            <>
+                              <video 
+                                key={videoSrc}
+                                ref={videoRef}
+                                src={videoSrc} 
+                                className="w-full h-full object-contain" 
+                                controls={false}
+                                autoPlay 
+                                onTimeUpdate={handleTimeUpdate}
+                                onLoadedMetadata={handleLoadedMetadata}
+                              />
+                              {/* Custom Controls Overlay */}
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 sm:p-6 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                {/* Progress Bar */}
+                                <div className="mb-4 flex items-center gap-3">
+                                  <span className="text-[10px] sm:text-xs font-mono text-white/80 min-w-[35px]">{formatTime(currentTime)}</span>
+                                  <div className="relative flex-1 group/progress h-6 flex items-center">
+                                    <input 
+                                      type="range"
+                                      min="0"
+                                      max={duration || 0}
+                                      step="0.1"
+                                      value={currentTime}
+                                      onChange={handleSeekChange}
+                                      className="absolute inset-0 w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#3B82F6] hover:h-1.5 transition-all"
+                                    />
+                                    <div 
+                                      className="h-1 bg-[#3B82F6] rounded-full pointer-events-none transition-all group-hover/progress:h-1.5"
+                                      style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] sm:text-xs font-mono text-white/80 min-w-[35px]">{formatTime(duration)}</span>
+                                </div>
 
-              <div className="flex-1 relative overflow-hidden flex flex-col">
-                {currentTab === 'video' ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center aspect-video m-auto bg-black relative">
-                    {videoSrc && (videoSrc.startsWith('blob:') || !videoSrc.includes('youtube.com')) ? (
-                      <>
-                        <video 
-                          key={videoSrc}
-                          ref={videoRef}
-                          src={videoSrc} 
-                          className="w-full h-full object-contain" 
-                          controls 
-                          autoPlay 
-                        />
-                        {/* Custom Controls Overlay */}
-                        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-3 bg-black/70 backdrop-blur-xl px-4 sm:px-5 py-2 sm:py-2.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity border border-white/10 z-10 shadow-2xl scale-90 sm:scale-100">
-                          <button 
-                            onClick={() => handleSeek(-10)}
-                            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
-                            title="Voltar 10s"
-                          >
-                            <Rewind size={18} />
-                          </button>
-                          
-                          <div className="h-5 w-px bg-white/10" />
-                          
-                          <div className="flex items-center gap-0.5">
-                            {[1, 1.5, 2].map(rate => (
-                              <button
-                                key={rate}
-                                onClick={() => handleRateChange(rate)}
-                                className={`px-2 py-1 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${
-                                  playbackRate === rate ? 'bg-[#3B82F6] text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
-                                }`}
-                              >
-                                {rate}x
-                              </button>
-                            ))}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 sm:gap-4">
+                                    <button 
+                                      onClick={handlePlayPause}
+                                      className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                                    >
+                                      {isPlaying ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                      ) : (
+                                        <Play size={22} fill="currentColor" />
+                                      )}
+                                    </button>
+
+                                    <button 
+                                      onClick={() => handleSeek(-10)}
+                                      className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                                      title="Voltar 10s"
+                                    >
+                                      <Rewind size={20} />
+                                    </button>
+                                    
+                                    <button 
+                                      onClick={() => handleSeek(10)}
+                                      className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                                      title="Avançar 10s"
+                                    >
+                                      <FastForward size={20} />
+                                    </button>
+
+                                    <div className="hidden sm:flex items-center gap-1 ml-2">
+                                      {[1, 1.5, 2].map(rate => (
+                                        <button
+                                          key={rate}
+                                          onClick={() => handleRateChange(rate)}
+                                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                            playbackRate === rate ? 'bg-[#3B82F6] text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
+                                          }`}
+                                        >
+                                          {rate}x
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3">
+                                    <a 
+                                      href={videoSrc || '#'}
+                                      download={`${course.title}.mp4`}
+                                      className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+                                      title="Baixar Vídeo"
+                                    >
+                                      <Download size={20} />
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <iframe 
+                              src={videoSrc} 
+                              className="w-full h-full border-0 aspect-video"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              title="Vídeo Aula"
+                            ></iframe>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PDF / Material Section */}
+                    {pdfSrc && (
+                      <div id="pdf-section" className="p-6 sm:p-12 bg-slate-50 border-t border-slate-200">
+                        <div className="max-w-4xl mx-auto">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
+                            <div className="flex items-center gap-4">
+                              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-600">
+                                <FileText size={24} />
+                              </div>
+                              <div>
+                                <h4 className="text-xl font-bold text-slate-900">Material de Apoio</h4>
+                                <p className="text-sm text-slate-500">Documentação técnica e guias em PDF.</p>
+                              </div>
+                            </div>
+                            <a 
+                              href={pdfSrc} 
+                              download={`${course.title}.pdf`}
+                              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100/50"
+                            >
+                              <Download size={18} />
+                              Baixar Manual
+                            </a>
                           </div>
 
-                          <div className="h-5 w-px bg-white/10" />
-
-                          <button 
-                            onClick={() => handleSeek(10)}
-                            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
-                            title="Avançar 10s"
-                          >
-                            <FastForward size={18} />
-                          </button>
-
-                          <div className="h-5 w-px bg-white/10" />
-
-                          <a 
-                            href={videoSrc || '#'}
-                            download={`${course.title}.mp4`}
-                            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
-                            title="Baixar Vídeo"
-                          >
-                            <Download size={18} />
-                          </a>
+                          <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
+                            <iframe 
+                              src={pdfSrc} 
+                              className="w-full min-h-[800px] border-0"
+                              title="Material PDF"
+                            ></iframe>
+                          </div>
                         </div>
-                      </>
-                    ) : videoSrc ? (
-                      <iframe 
-                        src={videoSrc} 
-                        className="w-full h-full border-0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        title="Vídeo Aula"
-                      ></iframe>
-                    ) : (
-                      <div className="text-center p-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#3B82F6] text-white mb-4 animate-pulse">
-                          <Play size={32} fill="currentColor" />
-                        </div>
-                        <h4 className="text-xl font-bold text-white mb-2">Vídeo não disponível</h4>
-                        <p className="text-slate-400 text-sm max-w-xs mx-auto">
-                          Este conteúdo ainda não possuí um vídeo anexado.
-                        </p>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 overflow-y-auto min-h-full">
-                  {pdfSrc ? (
-                    <iframe 
-                      src={pdfSrc} 
-                      className="w-full h-full border-0 min-h-[600px]"
-                      title="Pré-visualização PDF"
-                    ></iframe>
-                  ) : (
-                    <div className="bg-white shadow-2xl rounded-lg w-full max-w-2xl min-h-[800px] p-8 lg:p-12 flex flex-col my-4">
-                      {course.system === '7Edu' ? (
-                        <>
-                          <div className="flex justify-between items-start mb-12">
-                            <div className="h-12 w-12 bg-[#0F172A] rounded flex items-center justify-center text-white font-bold text-xs">7EDU</div>
-                            <div className="text-right">
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Manual do Usuário</p>
-                              <p className="text-sm font-bold text-slate-900">APRENDENDO COM O 7EDU</p>
-                            </div>
-                          </div>
-                          <div className="flex-1 border-t-2 border-slate-100 pt-8">
-                            <div className="mb-8 text-center">
-                              <h2 className="text-4xl font-black text-[#0F172A] mb-2">Introdução</h2>
-                              <div className="h-1 w-20 bg-[#3B82F6] mx-auto rounded-full" />
-                            </div>
-                            <p className="text-slate-700 leading-relaxed mb-6 text-justify">
-                              O 7Edu é o sistema oficial de gestão educacional da Rede Adventista, desenvolvido pelo IATec para integrar processos administrativos, acadêmicos e financeiros em uma única plataforma online. Sua estrutura modular e centralizada unifica dados de alunos, professores, secretaria, finanças, convênios e bolsas, oferecendo mais segurança, organização e eficiência.
-                            </p>
-                            <div className="grid grid-cols-2 gap-4 mb-8">
-                              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Módulo Atual</p>
-                                <p className="text-sm font-bold text-slate-900">{course.title}</p>
-                              </div>
-                              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Setor</p>
-                                <p className="text-sm font-bold text-slate-900">Financeiro / Acadêmico</p>
-                              </div>
-                            </div>
-                            <div className="space-y-4">
-                              <h4 className="font-bold text-slate-900">Procedimento Detalhado:</h4>
-                              <div className="flex gap-3 items-start">
-                                <div className="h-6 w-6 rounded-full bg-[#3B82F6] text-white flex items-center justify-center text-xs font-bold shrink-0">1</div>
-                                <p className="text-sm text-slate-600">Acesse o módulo de Finanças no menu lateral do 7Edu.</p>
-                              </div>
-                              <div className="flex gap-3 items-start">
-                                <div className="h-6 w-6 rounded-full bg-[#3B82F6] text-white flex items-center justify-center text-xs font-bold shrink-0">2</div>
-                                <p className="text-sm text-slate-600">Selecione a opção "Gerenciar Contas a Receber" para localizar o aluno.</p>
-                              </div>
-                              <div className="flex gap-3 items-start">
-                                <div className="h-6 w-6 rounded-full bg-[#3B82F6] text-white flex items-center justify-center text-xs font-bold shrink-0">3</div>
-                                <p className="text-sm text-slate-600">Siga as instruções de tela para realizar o lançamento de: {course.title}.</p>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex justify-between items-start mb-12">
-                            <div className="h-12 w-12 bg-red-600 rounded flex items-center justify-center text-white font-bold text-xs">TOTVS</div>
-                            <div className="text-right">
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Guia de Procedimentos</p>
-                              <p className="text-sm font-bold text-slate-900">SISTEMA TOTVS RM</p>
-                            </div>
-                          </div>
-                          <div className="flex-1 border-t-2 border-slate-100 pt-8">
-                            <h2 className="text-3xl font-black text-slate-900 mb-6">{course.title}</h2>
-                            <p className="text-slate-700 leading-relaxed mb-6">
-                              Este guia contém as orientações necessárias para realizar o procedimento no sistema TOTVS Backoffice Linha RM.
-                            </p>
-                            <div className="space-y-4">
-                              <div className="h-4 bg-slate-100 rounded w-full" />
-                              <div className="h-4 bg-slate-100 rounded w-5/6" />
-                              <div className="h-4 bg-slate-100 rounded w-4/6" />
-                              <div className="h-4 bg-slate-100 rounded w-full" />
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      <div className="mt-auto pt-8 flex justify-between items-center text-xs text-slate-400 font-bold border-t border-slate-100">
-                        <span>PÁGINA 1 DE 1</span>
-                        <span>CONFIDENCIAL - REDE ADVENTISTA</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
 
           <div className="p-4 sm:p-6 bg-white border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.05)]">
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -2104,20 +2122,38 @@ const MediaModal: React.FC<{
                 </button>
               </div>
 
+              <div className="hidden lg:flex items-center gap-4 text-slate-400 text-sm">
+                <div className="flex items-center gap-1">
+                  <Clock size={16} />
+                  <span>{course.duration}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <BarChart size={16} />
+                  <span>{course.difficulty}</span>
+                </div>
+              </div>
+
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                <a 
-                  href={currentTab === 'video' ? (videoSrc || '#') : (pdfSrc || '#')}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={currentTab === 'video' ? (isVideoBlob ? `${course.title}.mp4` : false) : (pdfSrc ? `${course.title}.pdf` : false)}
-                  className={`flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-sm ${
-                    (currentTab === 'video' ? videoSrc : pdfSrc)
-                      ? 'bg-slate-900 text-white hover:bg-black shadow-slate-200'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                  }`}
-                >
-                  <Download size={18} /> {currentTab === 'video' ? 'Baixar Aula' : 'Download PDF'}
-                </a>
+                {videoSrc && (
+                  <button 
+                    onClick={() => {
+                      document.getElementById('video-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold transition-all border border-blue-100 text-[#3B82F6] hover:bg-blue-50 text-xs"
+                  >
+                    Ver Vídeo
+                  </button>
+                )}
+                {pdfSrc && (
+                  <button 
+                    onClick={() => {
+                      document.getElementById('pdf-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold transition-all border border-emerald-100 text-emerald-600 hover:bg-emerald-50 text-xs"
+                  >
+                    Ver Material
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
