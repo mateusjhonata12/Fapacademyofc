@@ -1586,6 +1586,7 @@ const AdminView: React.FC<{
     if (!urlStr) return false;
     const trimmed = urlStr.trim().toLowerCase();
     
+    if (trimmed.startsWith('local-file-')) return true;
     if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) return true;
     if (trimmed.includes('sharepoint.com')) return true;
     if (trimmed.includes('onedrive.live.com') || trimmed.includes('1drv.ms')) return true;
