@@ -49,7 +49,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './components/AIAssistant';
 import { 
   signInAnonymously,
-  onAuthStateChanged
+  onAuthStateChanged,
+  OAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { 
   ref, 
@@ -493,6 +495,100 @@ export default function App() {
     }
   };
 
+  const handleMicrosoftLogin = async () => {
+    setIsAppLoading(true);
+    try {
+      const provider = new OAuthProvider('microsoft.com');
+      provider.setCustomParameters({
+        tenant: 'organizations', // Restringe a contas corporativas Microsoft (Azure AD)
+        prompt: 'select_account'
+      });
+      
+      const result = await signInWithPopup(auth, provider);
+      const email = result.user.email?.toLowerCase();
+      
+      if (!email) {
+        throw new Error("Não foi possível obter o e-mail da conta Microsoft.");
+      }
+      
+      // Verifica se o usuário já existe na coleção 'users' do Firestore
+      const q = query(
+        collection(db, 'users'), 
+        where('email', '==', email)
+      );
+      const querySnapshot = await getDocs(q);
+      
+      let userObj: User;
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        userObj = { id: userDoc.id, ...userDoc.data() } as User;
+      } else {
+        // Registra automaticamente o usuário corporativo novo
+        const newId = result.user.uid || Math.random().toString(36).substr(2, 9);
+        const name = result.user.displayName || email.split('@')[0].toUpperCase();
+        const newUser: User = {
+          id: newId,
+          name,
+          email,
+          role: 'user',
+          password: 'corporate-oauth-user' // Senha padrão fictícia de controle
+        };
+        await setDoc(doc(db, 'users', newId), newUser);
+        userObj = newUser;
+      }
+      
+      setCurrentUser(userObj);
+      localStorage.setItem('fapacademy_user', JSON.stringify(userObj));
+    } catch (error: any) {
+      console.error("Erro no login Microsoft:", error);
+      
+      // Tratamento amigável caso o provedor Microsoft ainda não esteja ativo no Console do Firebase
+      if (error.code === 'auth/operation-not-allowed' || error.code === 'auth/configuration-not-found' || error.message?.includes('provider') || error.code?.includes('configuration')) {
+        const wishToSimulate = window.confirm(
+          "O login integrado com Microsoft 365 / Azure AD não está ativado no Console do Firebase de desenvolvimento.\n\n" +
+          "Para ativá-lo em ambiente real:\n" +
+          "1. Vá ao Firebase Console -> Authentication -> Sign-in Method\n" +
+          "2. Clique em 'Adicionar novo provedor' -> Microsoft e insira o Application ID e Secret do Azure AD.\n\n" +
+          "Gostaria de rodar uma simulação de autenticação com e-mail corporativo para ver como o fluxo e o controle de progresso se comportam?"
+        );
+        
+        if (wishToSimulate) {
+          const testEmail = window.prompt("Insira um endereço de e-mail corporativo fictício (ex: seu.nome@suaempresa.com.br):", "colaborador@fap.com.br");
+          if (testEmail && testEmail.trim()) {
+            const emailClean = testEmail.trim().toLowerCase();
+            const q = query(
+              collection(db, 'users'), 
+              where('email', '==', emailClean)
+            );
+            const querySnapshot = await getDocs(q);
+            let userObj: User;
+            if (!querySnapshot.empty) {
+              const userDoc = querySnapshot.docs[0];
+              userObj = { id: userDoc.id, ...userDoc.data() } as User;
+            } else {
+              const newId = "ms-" + Math.random().toString(36).substr(2, 9);
+              userObj = {
+                id: newId,
+                name: emailClean.split('@')[0].toUpperCase(),
+                email: emailClean,
+                role: 'user',
+                password: 'corporate-oauth-user'
+              };
+              await setDoc(doc(db, 'users', newId), userObj);
+            }
+            setCurrentUser(userObj);
+            localStorage.setItem('fapacademy_user', JSON.stringify(userObj));
+          }
+        }
+      } else {
+        alert("Erro ao realizar login corporativo: " + (error.message || error));
+      }
+    } finally {
+      setIsAppLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('fapacademy_user');
@@ -550,7 +646,7 @@ export default function App() {
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.3 }}
         >
-          <LoginView users={users} onLogin={handleLogin} />
+          <LoginView users={users} onLogin={handleLogin} onMicrosoftLogin={handleMicrosoftLogin} />
         </motion.div>
       ) : (
         <motion.div 
@@ -567,15 +663,15 @@ export default function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsSidebarOpen(false)}
-                className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
+                className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-md lg:hidden"
               />
             )}
           </AnimatePresence>
 
           {/* --- Sidebar --- */}
       <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0F172A] text-white transition-all duration-300 lg:static ${
-          isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 lg:w-0 lg:overflow-hidden'
+        className={`fixed inset-y-0 left-0 z-50 bg-[#0F172A] text-white transition-all duration-500 ease-in-out lg:static overflow-hidden ${
+          isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 w-0'
         }`}
       >
         <div className="flex h-full flex-col">
@@ -1262,8 +1358,9 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
 
 const LoginView: React.FC<{ 
   users: User[], 
-  onLogin: (data: Pick<User, 'email' | 'password'>) => void 
-}> = ({ onLogin }) => {
+  onLogin: (data: Pick<User, 'email' | 'password'>) => void,
+  onMicrosoftLogin: () => void
+}> = ({ onLogin, onMicrosoftLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -1378,7 +1475,27 @@ const LoginView: React.FC<{
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-slate-100 text-center">
+          <div className="relative flex py-5 items-center">
+            <div className="flex-grow border-t border-slate-100 animate-pulse"></div>
+            <span className="flex-shrink mx-4 text-slate-400 text-xs uppercase tracking-wider font-bold">ou acesse via</span>
+            <div className="flex-grow border-t border-slate-100 animate-pulse"></div>
+          </div>
+
+          <button 
+            type="button"
+            onClick={onMicrosoftLogin}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl font-bold text-slate-700 hover:text-slate-900 shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <div className="grid grid-cols-2 gap-[2px] w-4 h-4 flex-shrink-0 animate-bounce">
+              <div className="w-[7px] h-[7px] bg-[#F25022]"></div>
+              <div className="w-[7px] h-[7px] bg-[#7FBA00]"></div>
+              <div className="w-[7px] h-[7px] bg-[#00A4EF]"></div>
+              <div className="w-[7px] h-[7px] bg-[#FFB900]"></div>
+            </div>
+            <span>E-mail Corporativo (Microsoft 365)</span>
+          </button>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <div className="flex items-center justify-center gap-2 text-slate-400 text-xs font-medium">
               <ShieldCheck size={14} />
               <span>Acesso restrito a colaboradores autorizados</span>
