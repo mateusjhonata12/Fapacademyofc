@@ -28,8 +28,6 @@ import {
   Plus,
   Download,
   Video,
-  Smartphone,
-  Monitor,
   Upload,
   LogIn,
   ShieldCheck,
@@ -97,6 +95,36 @@ import {
 } from 'firebase/firestore';
 import { db, auth, storage, handleFirestoreError, OperationType } from './lib/firebase';
 import { saveLocalFile, getLocalFile } from './lib/indexedDB';
+
+const downloadFile = async (url: string, filename: string) => {
+  if (!url) return;
+  if (url.startsWith('blob:') || url.startsWith('data:')) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("CORS constraint or resource not accessible directly");
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.warn("Fallback to opening target link in new tab:", error);
+    window.open(url, '_blank');
+  }
+};
 
 // --- Tipos ---
 interface Course {
@@ -1433,11 +1461,11 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
             {isCompleted ? 'Reassistir' : 'Iniciar Aula'}
           </button>
           {course.pdfUrl ? (
-            <a 
-              href={course.pdfUrl}
-              download={`${course.title}.pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadFile(course.pdfUrl!, `${course.title}.pdf`);
+              }}
               className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-all active:scale-95 shadow-sm text-center border ${
                 theme === 'dark'
                   ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900 hover:bg-emerald-900/40'
@@ -1447,7 +1475,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
             >
               <Download size={18} className="text-emerald-500" />
               <span>Passo a Passo</span>
-            </a>
+            </button>
           ) : (
             <button 
               disabled
@@ -1719,36 +1747,42 @@ const AdminView: React.FC<{
   const handleFileUpload = async (file: File, type: 'video' | 'pdf') => {
     setIsUploading(true);
     
-    // 1. Salva localmente no IndexedDB e atualiza o estado imediatamente para uso instantâneo offline/local
-    const localId = `local-file-${Date.now()}-${file.name}`;
-    try {
-      await saveLocalFile(localId, file);
-      
-      if (type === 'video') {
-        setNewCourse(prev => ({ ...prev, videoUrl: localId }));
-      } else {
-        setNewCourse(prev => ({ ...prev, pdfUrl: localId }));
-      }
-    } catch (e) {
-      console.warn("Erro ao salvar localmente no IndexedDB:", e);
+    // Atualiza o estado imediatamente com um texto informativo temporário
+    if (type === 'video') {
+      setNewCourse(prev => ({ ...prev, videoUrl: "Carregando mídia online (Aguarde)..." }));
+    } else {
+      setNewCourse(prev => ({ ...prev, pdfUrl: "Carregando material online (Aguarde)..." }));
     }
 
-    // 2. Tenta fazer o upload em segundo plano para o Firebase Storage
+    // Tenta primeiro enviar para o Firebase Storage de forma pública/online
     try {
       const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name}`);
       const snapshot = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(snapshot.ref);
       
-      // Sincroniza com a URL na nuvem se o upload deu certo
+      // Salva também no IndexedDB como um backup de cache local útil
+      const localId = `local-file-${Date.now()}-${file.name}`;
+      try {
+        await saveLocalFile(localId, file);
+      } catch (e) {
+        console.warn("Erro ao salvar cópia local de cache no IndexedDB:", e);
+      }
+
+      // Define a URL pública para ser gravada no Firestore para todos os usuários
       if (type === 'video') {
         setNewCourse(prev => ({ ...prev, videoUrl: downloadURL }));
       } else {
         setNewCourse(prev => ({ ...prev, pdfUrl: downloadURL }));
       }
-      alert(`${type.toUpperCase()} enviado e hospedado com sucesso na nuvem!`);
-    } catch (error) {
-      console.warn("Firebase Storage indisponível, utilizando cópia local do IndexedDB:", error);
-      alert(`${type.toUpperCase()} carregado localmente com sucesso no navegador!`);
+      alert(`${type.toUpperCase()} enviado com sucesso e disponibilizado online para todos!`);
+    } catch (error: any) {
+      console.error("Erro ao hospedar arquivo no Firebase Storage:", error);
+      if (type === 'video') {
+        setNewCourse(prev => ({ ...prev, videoUrl: "" }));
+      } else {
+        setNewCourse(prev => ({ ...prev, pdfUrl: "" }));
+      }
+      alert(`Erro: O arquivo precisa ser salvo online para que todos os alunos tenham acesso. Detalhes: ${error?.message || error}`);
     } finally {
       setIsUploading(false);
     }
@@ -1772,7 +1806,6 @@ const AdminView: React.FC<{
     if (!urlStr) return false;
     const trimmed = urlStr.trim().toLowerCase();
     
-    if (trimmed.startsWith('local-file-')) return true;
     if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) return true;
     if (trimmed.includes('sharepoint.com')) return true;
     if (trimmed.includes('onedrive.live.com') || trimmed.includes('1drv.ms')) return true;
@@ -2467,7 +2500,6 @@ const MediaModal: React.FC<{
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchRef = React.useRef<HTMLDivElement>(null);
   const [playbackRate, setPlaybackRate] = React.useState(1);
-  const [videoFormat, setVideoFormat] = React.useState<'landscape' | 'portrait'>('landscape');
   const [currentTab, setCurrentTab] = useState<'video' | 'pdf'>('video');
   const [currentTime, setCurrentTime] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2567,17 +2599,6 @@ const MediaModal: React.FC<{
       setCurrentTab(type);
     }
   }, [isOpen, type, course]);
-
-  useEffect(() => {
-    if (resolvedVideoUrl) {
-      const lower = resolvedVideoUrl.toLowerCase();
-      if (lower.includes('/shorts/') || lower.includes('tiktok.com') || lower.includes('reels') || lower.includes('vertical')) {
-        setVideoFormat('portrait');
-      } else {
-        setVideoFormat('landscape');
-      }
-    }
-  }, [resolvedVideoUrl, isOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -2836,13 +2857,6 @@ const MediaModal: React.FC<{
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
-      const width = videoRef.current.videoWidth;
-      const height = videoRef.current.videoHeight;
-      if (width > 0 && height > 0) {
-        const isVertical = width < height;
-        setVideoFormat(isVertical ? 'portrait' : 'landscape');
-        addLog(`Dimensões do vídeo carregado: ${width}x${height} (Formato: ${isVertical ? 'Celular' : 'Padrão'})`);
-      }
     }
   };
 
@@ -3108,13 +3122,10 @@ const MediaModal: React.FC<{
                       {/* Responsive video container */}
                       <div 
                         ref={containerRef}
-                        style={!isFullscreen && videoFormat === 'portrait' ? { aspectRatio: '9/16' } : {}}
                         className={`group relative flex items-center justify-center bg-black overflow-hidden mx-auto transition-all ${
                           isFullscreen 
                             ? 'w-screen h-screen' 
-                            : videoFormat === 'portrait'
-                              ? 'w-full max-w-[340px] rounded-2xl shadow-2xl border border-slate-850'
-                              : 'w-full max-w-4xl aspect-video rounded-2xl shadow-2xl border border-slate-800'
+                            : 'w-full max-w-4xl aspect-video rounded-2xl shadow-2xl border border-slate-800'
                         }`}
                       >
                         {/* Loading Ring overlay */}
@@ -3284,7 +3295,7 @@ const MediaModal: React.FC<{
                             {/* Iframe wrapper for general, YouTube, vimeo, sharepoint links */}
                             <iframe 
                               src={videoSrc || undefined} 
-                              className={`w-full h-full border-0 rounded-2xl ${videoFormat === 'landscape' ? 'aspect-video' : ''}`}
+                              className="w-full h-full border-0 aspect-video rounded-2xl"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               title="Vídeo Aula"
@@ -3363,33 +3374,8 @@ const MediaModal: React.FC<{
                           </button>
                         </div>
 
-                        {/* External Actions & Dynamic mobile form factor adaptation */}
+                        {/* External Actions & Diagnostic toggles */}
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              const nextFormat = videoFormat === 'landscape' ? 'portrait' : 'landscape';
-                              setVideoFormat(nextFormat);
-                              addLog(`Formato do player alterado manualmente para ${nextFormat === 'portrait' ? 'Celular (9:16)' : 'Computador (16:9)'}.`);
-                            }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all border ${
-                              videoFormat === 'portrait' 
-                                ? 'bg-blue-600/30 text-blue-400 border-blue-500/50 hover:bg-blue-600/40' 
-                                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-                            }`}
-                            title={videoFormat === 'landscape' ? "Mudar layout para Formato Celular (Vertical)" : "Mudar layout para Formato Padrão (Horizontal)"}
-                          >
-                            {videoFormat === 'landscape' ? (
-                              <>
-                                <Smartphone size={13} className="text-blue-400" />
-                                <span>Design Celular</span>
-                              </>
-                            ) : (
-                              <>
-                                <Monitor size={13} className="text-blue-400" />
-                                <span>Design Horizontal</span>
-                              </>
-                            )}
-                          </button>
 
                           {course.videoUrl && (
                             <a 
@@ -3562,16 +3548,14 @@ const MediaModal: React.FC<{
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Downloads Disponíveis</span>
                         
                         {course.videoUrl ? (
-                          <a 
-                            href={course.videoUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
+                          <button 
+                            onClick={() => downloadFile(course.videoUrl!, `${course.title}.mp4`)}
                             className="w-full flex items-center justify-center gap-1.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-extrabold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all active:scale-[0.98]"
                             title="Baixar Vídeo Aula"
                           >
                             <Download size={13} />
                             Fazer Download do Vídeo
-                          </a>
+                          </button>
                         ) : (
                           <div className="w-full flex items-center justify-center gap-1 text-slate-450 bg-slate-100 text-[10px] font-medium py-2 px-3 rounded-lg border border-dashed border-slate-200 cursor-not-allowed">
                             <Video size={12} />
@@ -3580,16 +3564,14 @@ const MediaModal: React.FC<{
                         )}
 
                         {pdfSrc ? (
-                          <a 
-                            href={pdfSrc} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
+                          <button 
+                            onClick={() => downloadFile(pdfSrc, `${course.title}.pdf`)}
                             className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all active:scale-[0.98]"
                             title="Baixar Passo a Passo (PDF)"
                           >
                             <FileText size={13} />
                             Baixar Passo a Passo (PDF)
-                          </a>
+                          </button>
                         ) : (
                           <div className="w-full flex items-center justify-center gap-1 text-slate-450 bg-slate-100 text-[10px] font-medium py-2 px-3 rounded-lg border border-dashed border-slate-200 cursor-not-allowed">
                             <FileText size={12} />
