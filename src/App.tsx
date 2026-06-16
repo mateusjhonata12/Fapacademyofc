@@ -27,6 +27,7 @@ import {
   Zap,
   Plus,
   Download,
+  Video,
   Upload,
   LogIn,
   ShieldCheck,
@@ -1044,6 +1045,12 @@ export default function App() {
           isOpen={!!modalType} 
           type={modalType} 
           course={selectedCourse} 
+          courses={courses}
+          onSelectCourse={(c) => {
+            setSelectedCourse(c);
+          }}
+          isCompleted={selectedCourse ? completedCourses.includes(selectedCourse.id) : false}
+          onToggleComplete={toggleComplete}
           onClose={() => {
             setModalType(null);
             setSelectedCourse(null);
@@ -1434,10 +1441,10 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
                   ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900 hover:bg-emerald-900/40'
                   : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
               }`}
-              title="Baixar Material de Apoio (PDF)"
+              title="Baixar Passo a Passo (PDF)"
             >
               <Download size={18} className="text-emerald-500" />
-              <span>Material</span>
+              <span>Passo a Passo</span>
             </a>
           ) : (
             <button 
@@ -1447,7 +1454,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
                   ? 'bg-slate-900 text-slate-700 border-slate-950'
                   : 'bg-slate-50 text-slate-300 border-slate-100'
               }`}
-              title="Sem material de apoio disponível"
+              title="Sem Passo a Passo disponível"
             >
               <FileText size={18} />
               <span>Sem PDF</span>
@@ -2445,18 +2452,23 @@ const MediaModal: React.FC<{
   isOpen: boolean, 
   type: 'video' | 'pdf' | null, 
   course: Course | null, 
+  courses?: Course[],
+  onSelectCourse?: (course: Course) => void,
   onClose: () => void,
   onPrev?: () => void,
   onNext?: () => void,
   onTypeChange?: (type: 'video' | 'pdf') => void,
   isCompleted?: boolean,
   onToggleComplete?: (id: string) => void
-}> = ({ isOpen, type, course, onClose, onPrev, onNext, onTypeChange, isCompleted, onToggleComplete }) => {
+}> = ({ isOpen, type, course, courses = [], onSelectCourse, onClose, onPrev, onNext, onTypeChange, isCompleted, onToggleComplete }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const searchRef = React.useRef<HTMLDivElement>(null);
   const [playbackRate, setPlaybackRate] = React.useState(1);
   const [currentTab, setCurrentTab] = useState<'video' | 'pdf'>('video');
   const [currentTime, setCurrentTime] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -2552,6 +2564,18 @@ const MediaModal: React.FC<{
       setCurrentTab(type);
     }
   }, [isOpen, type, course]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setIsSearchFocused(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Expose tab setter and video controls to window for AI Assistant automation
   useEffect(() => {
@@ -2910,15 +2934,15 @@ const MediaModal: React.FC<{
             className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl my-auto overflow-hidden flex flex-col h-auto max-h-[98vh] border border-slate-100"
           >
             {/* Header Modal */}
-            <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center bg-white">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
                   <GraduationCap size={20} />
                 </div>
-                <div className="max-w-[200px] sm:max-w-[400px] lg:max-w-none text-left">
-                  <h3 className="text-sm sm:text-lg font-black text-slate-900 truncate leading-tight">{course.title}</h3>
+                <div className="max-w-[200px] sm:max-w-[300px] lg:max-w-[400px] text-left">
+                  <h3 className="text-sm sm:text-lg font-black text-slate-900 truncate leading-tight">{course?.title}</h3>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[9px] text-[#3B82F6] font-extrabold uppercase tracking-widest">{course.system}</span>
+                    <span className="text-[9px] text-[#3B82F6] font-extrabold uppercase tracking-widest">{course?.system}</span>
                     <span className="text-slate-300 text-xs">•</span>
                     <p className="text-[9px] text-slate-500 uppercase font-extrabold tracking-widest">
                       {currentTab === 'pdf' ? 'Material de Apoio' : 'Vídeo Aula'}
@@ -2926,10 +2950,92 @@ const MediaModal: React.FC<{
                   </div>
                 </div>
               </div>
+
+              {/* Dynamic search bar inside the MediaModal */}
+              {courses && courses.length > 0 && (
+                <div className="relative flex-1 max-w-md mx-0 md:mx-6" ref={searchRef}>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Navegar e buscar outra aula..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setIsSearchFocused(true);
+                      }}
+                      onFocus={() => setIsSearchFocused(true)}
+                      className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown containing all matching courses */}
+                  <AnimatePresence>
+                    {isSearchFocused && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-150 z-[100] max-h-64 overflow-y-auto p-1.5"
+                      >
+                        {(() => {
+                          const query = searchQuery.toLowerCase().trim();
+                          const matches = courses.filter(c => 
+                            c.title.toLowerCase().includes(query) || 
+                            c.system.toLowerCase().includes(query)
+                          );
+
+                          if (matches.length === 0) {
+                            return <p className="text-[11px] text-slate-400 py-3 text-center font-medium">Nenhuma aula encontrada</p>;
+                          }
+
+                          return (
+                            <div className="space-y-0.5">
+                              {matches.map((c) => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => {
+                                    onSelectCourse?.(c);
+                                    setSearchQuery('');
+                                    setIsSearchFocused(false);
+                                  }}
+                                  className={`w-full flex items-center justify-between p-2 rounded-xl text-left select-none transition-colors ${
+                                    c.id === course?.id 
+                                      ? 'bg-blue-50 text-blue-700 font-bold' 
+                                      : 'hover:bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 max-w-[80%]">
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                                      c.system === '7Edu' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'
+                                    }`}>
+                                      {c.system}
+                                    </span>
+                                    <span className="text-[11px] font-bold truncate leading-tight">{c.title}</span>
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 shrink-0 font-mono italic">{c.duration}</span>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
               
               <button 
                 onClick={onClose} 
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-550 transition-colors"
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-550 transition-colors shrink-0 ml-auto md:ml-0"
                 aria-label="Fechar"
               >
                 <X size={20} />
@@ -3075,7 +3181,7 @@ const MediaModal: React.FC<{
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-2 text-left">
                               {/* Progress bar timeline */}
                               <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-mono text-white/90">{formatTime(currentTime)}</span>
+                                <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(currentTime)}</span>
                                 <div className="flex-1 relative h-1 bg-white/20 rounded-full cursor-pointer group/bar">
                                   <input 
                                     type="range"
@@ -3095,7 +3201,7 @@ const MediaModal: React.FC<{
                                     style={{ left: `calc(${(currentTime / (duration || 1)) * 100}% - 5px)` }}
                                   />
                                 </div>
-                                <span className="text-[9px] font-mono text-white/90">{formatTime(duration)}</span>
+                                <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(duration)}</span>
                               </div>
 
                               {/* Controls row */}
@@ -3125,12 +3231,12 @@ const MediaModal: React.FC<{
                                   </div>
 
                                   {/* Speed setting */}
-                                  <div className="flex gap-1">
+                                  <div className="flex gap-1.5">
                                     {[1, 1.5, 2].map(rate => (
                                       <button 
                                         key={rate} 
                                         onClick={() => handleRateChange(rate)}
-                                        className={`px-1.5 py-0.5 rounded text-[8px] font-black ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+                                        className={`px-2 py-0.5 rounded text-[11px] font-black tracking-wide ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-405 hover:text-white hover:bg-white/10'}`}
                                       >
                                         {rate}x
                                       </button>
@@ -3178,21 +3284,21 @@ const MediaModal: React.FC<{
                           <button
                             onClick={() => handleSeek(-10)}
                             disabled={!isDirectVideo(videoSrc)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                               isDirectVideo(videoSrc) 
                                 ? 'bg-slate-800 hover:bg-slate-700 text-white' 
                                 : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
                             }`}
                             title={isDirectVideo(videoSrc) ? "Voltar 10 segundos" : "Disponível apenas para arquivos locais de vídeo"}
                           >
-                            <RotateCcw size={12} />
+                            <RotateCcw size={13} />
                             Rebobinar 10s
                           </button>
                           
                           <button
                             onClick={() => handleSeek(10)}
                             disabled={!isDirectVideo(videoSrc)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                               isDirectVideo(videoSrc) 
                                 ? 'bg-slate-800 hover:bg-slate-700 text-white' 
                                 : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
@@ -3200,7 +3306,7 @@ const MediaModal: React.FC<{
                             title={isDirectVideo(videoSrc) ? "Avançar 10 segundos" : "Disponível apenas para arquivos locais de vídeo"}
                           >
                             Avançar 10s
-                            <RotateCw size={12} />
+                            <RotateCw size={13} />
                           </button>
                         </div>
 
@@ -3209,7 +3315,7 @@ const MediaModal: React.FC<{
                           <button
                             onClick={onPrev}
                             disabled={!onPrev}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-colors ${
                               onPrev 
                                 ? 'bg-transparent text-blue-400 border border-blue-500/30 hover:bg-blue-500/10' 
                                 : 'text-slate-600 cursor-not-allowed'
@@ -3222,7 +3328,7 @@ const MediaModal: React.FC<{
                           <button
                             onClick={onNext}
                             disabled={!onNext}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-colors ${
                               onNext 
                                 ? 'bg-blue-600 text-white hover:bg-blue-700' 
                                 : 'text-slate-600 bg-slate-805 cursor-not-allowed'
@@ -3240,15 +3346,15 @@ const MediaModal: React.FC<{
                               href={course.videoUrl} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-[11px] font-bold"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs sm:text-sm font-bold"
                             >
-                              <ExternalLink size={12} />
+                              <ExternalLink size={13} />
                               Nova Aba
                             </a>
                           )}
                           <button
                             onClick={() => setShowLogs(!showLogs)}
-                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold border transition-all ${
                               showLogs ? 'bg-indigo-600/30 text-indigo-400 border-indigo-500/50' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                             }`}
                           >
@@ -3346,8 +3452,8 @@ const MediaModal: React.FC<{
 
                     {/* Progress Toggle Card */}
                     <div className="bg-slate-50 border border-slate-250/20 p-4 rounded-2xl flex flex-col justify-between gap-4">
-                      <div>
-                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2">Seu Progresso</h4>
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Seu Progresso</h4>
                         
                         <div className="p-3 bg-white border border-slate-100 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-200 transition-colors">
                           <div className="flex items-center gap-2">
@@ -3370,7 +3476,20 @@ const MediaModal: React.FC<{
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 mt-2">
+                        {/* Botão de Marcar Conclusão */}
+                        <button
+                          onClick={() => onToggleComplete?.(course.id)}
+                          className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
+                            isCompleted 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-250 hover:bg-emerald-100' 
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/10'
+                          }`}
+                        >
+                          <CheckCircle2 size={14} className={isCompleted ? "text-emerald-500" : "text-white"} />
+                          {isCompleted ? 'Concluído! Desmarcar aula' : 'Marcar Aula como Concluída'}
+                        </button>
+
+                        <div className="grid grid-cols-2 gap-2">
                           <div className="p-2.5 bg-white border border-slate-100 rounded-lg text-left">
                             <span className="text-[9px] text-slate-400 font-bold uppercase block">Duração</span>
                             <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1 mt-0.5">
@@ -3388,28 +3507,44 @@ const MediaModal: React.FC<{
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-1.5">
-                        {course.videoUrl && (
+                      {/* Botões Separados para Download do Vídeo e do Passo a Passo (PDF) */}
+                      <div className="space-y-2 pt-3 border-t border-slate-200/60 text-left">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Downloads Disponíveis</span>
+                        
+                        {course.videoUrl ? (
                           <a 
                             href={course.videoUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-2 px-3 rounded-lg shadow-sm"
+                            className="w-full flex items-center justify-center gap-1.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-extrabold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all active:scale-[0.98]"
+                            title="Baixar Vídeo Aula"
                           >
-                            <Download size={12} />
-                            Fazer Download / Assistir
+                            <Download size={13} />
+                            Fazer Download do Vídeo
                           </a>
+                        ) : (
+                          <div className="w-full flex items-center justify-center gap-1 text-slate-450 bg-slate-100 text-[10px] font-medium py-2 px-3 rounded-lg border border-dashed border-slate-200 cursor-not-allowed">
+                            <Video size={12} />
+                            Vídeo não disponível
+                          </div>
                         )}
-                        {pdfSrc && (
+
+                        {pdfSrc ? (
                           <a 
                             href={pdfSrc} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs py-2 px-3 rounded-lg"
+                            className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all active:scale-[0.98]"
+                            title="Baixar Passo a Passo (PDF)"
                           >
-                            <FileText size={12} />
-                            Acessar PDF de Apoio
+                            <FileText size={13} />
+                            Baixar Passo a Passo (PDF)
                           </a>
+                        ) : (
+                          <div className="w-full flex items-center justify-center gap-1 text-slate-450 bg-slate-100 text-[10px] font-medium py-2 px-3 rounded-lg border border-dashed border-slate-200 cursor-not-allowed">
+                            <FileText size={12} />
+                            Sem PDF Passo a Passo
+                          </div>
                         )}
                       </div>
                     </div>
