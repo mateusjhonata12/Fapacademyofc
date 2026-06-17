@@ -50,7 +50,7 @@ import {
   FileCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AIAssistant } from './components/AIAssistant';
+import { AIAssistant } from './lib/AIAssistant';
 import { GeminiVideoUploader } from './components/GeminiVideoUploader';
 import { 
   signInAnonymously,
@@ -95,6 +95,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth, storage, handleFirestoreError, OperationType } from './lib/firebase';
 import { saveLocalFile, getLocalFile } from './lib/indexedDB';
+import { supabase } from './lib/supabase';
 
 const downloadFile = async (url: string, filename: string) => {
   if (!url) return;
@@ -1761,11 +1762,37 @@ const AdminView: React.FC<{
       setNewCourse(prev => ({ ...prev, pdfUrl: "Carregando material online (Aguarde)..." }));
     }
 
-    // Tenta primeiro enviar para o Firebase Storage de forma pública/online
     try {
-      const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
+      let downloadURL = "";
+      
+      // Verifica se as credenciais do Supabase estão configuradas para usá-lo como provedor principal
+      const hasSupabase = (import.meta as any).env.VITE_SUPABASE_URL && (import.meta as any).env.VITE_SUPABASE_ANON_KEY && supabase;
+      
+      if (hasSupabase) {
+        const filePath = `courses/${type}s/${Date.now()}_${file.name}`;
+        const { error } = await supabase.storage
+          .from('videos-sistema')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) {
+          throw new Error(`Supabase Storage: ${error.message}`);
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('videos-sistema')
+          .getPublicUrl(filePath);
+          
+        downloadURL = publicUrl;
+      } else {
+        // Fallback automático para o Firebase Storage para manter máxima resiliência e facilidade em ambiente local/limpo
+        console.warn("Chaves do Supabase não configuradas nas variáveis de ambiente. Utilizando Firebase Storage como fallback.");
+        const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        downloadURL = await getDownloadURL(snapshot.ref);
+      }
       
       // Salva também no IndexedDB como um backup de cache local útil
       const localId = `local-file-${Date.now()}-${file.name}`;
@@ -1783,7 +1810,7 @@ const AdminView: React.FC<{
       }
       alert(`${type.toUpperCase()} enviado com sucesso e disponibilizado online para todos!`);
     } catch (error: any) {
-      console.error("Erro ao hospedar arquivo no Firebase Storage:", error);
+      console.error("Erro ao hospedar arquivo no provedor de nuvem:", error);
       if (type === 'video') {
         setNewCourse(prev => ({ ...prev, videoUrl: "" }));
       } else {
