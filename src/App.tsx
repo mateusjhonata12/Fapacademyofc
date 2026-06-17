@@ -95,7 +95,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth, storage, handleFirestoreError, OperationType } from './lib/firebase';
 import { saveLocalFile, getLocalFile } from './lib/indexedDB';
-import { supabase } from './lib/supabase';
+import { supabase, isConfigured } from './lib/supabase';
 
 const downloadFile = async (url: string, filename: string) => {
   if (!url) return;
@@ -1766,7 +1766,7 @@ const AdminView: React.FC<{
       let downloadURL = "";
       
       // Verifica se as credenciais do Supabase estão configuradas para usá-lo como provedor principal
-      const hasSupabase = (import.meta as any).env.VITE_SUPABASE_URL && (import.meta as any).env.VITE_SUPABASE_ANON_KEY && supabase;
+      const hasSupabase = isConfigured;
       
       if (hasSupabase) {
         const filePath = `courses/${type}s/${Date.now()}_${file.name}`;
