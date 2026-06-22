@@ -427,6 +427,17 @@ export default function App() {
 
   // --- Listeners de Dados ---
   useEffect(() => {
+    // Carrega de antemão do localStorage caso esteja totalmente sem conexão
+    const offlineCoursesJSON = localStorage.getItem('fapacademy_offline_courses');
+    let offlineCourses: Course[] = [];
+    if (offlineCoursesJSON) {
+      try {
+        offlineCourses = JSON.parse(offlineCoursesJSON);
+      } catch (e) {
+        console.warn("Erro ao deserializar fapacademy_offline_courses:", e);
+      }
+    }
+
     // Cursos (Sempre visíveis publicamente agora)
     const coursesUnsubscribe = onSnapshot(collection(db, 'courses'), 
       async (snapshot) => {
@@ -458,8 +469,14 @@ export default function App() {
           return updatedCourse;
         }));
 
+        // Une os cursos do banco com os cursos offline salvos localmente
+        const allCourses = [...offlineCourses, ...updatedCourses];
+        const uniqueCoursesMap = new Map<string, Course>();
+        allCourses.forEach(c => uniqueCoursesMap.set(c.id, c));
+        const mergedCourses = Array.from(uniqueCoursesMap.values());
+
         // Sort: items with createdAt descending, then items without by numeric ID ascending
-        updatedCourses.sort((a, b) => {
+        mergedCourses.sort((a, b) => {
           const aTime = a.createdAt || 0;
           const bTime = b.createdAt || 0;
           if (aTime || bTime) {
@@ -470,10 +487,10 @@ export default function App() {
           return aId - bId;
         });
 
-        setCourses(updatedCourses);
+        setCourses(mergedCourses);
         setIsAppLoading(false);
 
-        if (snapshot.empty) {
+        if (snapshot.empty && mergedCourses.length === 0) {
           COURSES.forEach(async (c) => {
             const { id, ...data } = c;
             await setDoc(doc(db, 'courses', id), {
@@ -483,8 +500,27 @@ export default function App() {
           });
         }
       },
-      (error) => {
-        console.error("Erro ao carregar cursos:", error);
+      async (error) => {
+        console.error("Erro ao carregar cursos do Firestore:", error);
+        // Fallback local total se o Firestore falhar totalmente (off-line)
+        const staticCoursesWithBlobs = await Promise.all(COURSES.map(async (course) => {
+          const updatedCourse = { ...course };
+          if (course.videoUrl && course.videoUrl.startsWith('local-file-')) {
+            const blob = await getLocalFile(course.videoUrl);
+            if (blob) updatedCourse.videoUrl = URL.createObjectURL(blob);
+          }
+          if (course.pdfUrl && course.pdfUrl.startsWith('local-file-')) {
+            const blob = await getLocalFile(course.pdfUrl);
+            if (blob) updatedCourse.pdfUrl = URL.createObjectURL(blob);
+          }
+          return updatedCourse;
+        }));
+
+        const fallbackMerged = [...offlineCourses, ...staticCoursesWithBlobs];
+        const uniqueCoursesMap = new Map<string, Course>();
+        fallbackMerged.forEach(c => uniqueCoursesMap.set(c.id, c));
+        setCourses(Array.from(uniqueCoursesMap.values()));
+        setIsAppLoading(false);
       }
     );
 
@@ -959,7 +995,22 @@ export default function App() {
                       createdAt: Date.now()
                     });
                   } catch (e) {
-                    console.error("Erro ao adicionar curso:", e);
+                    console.error("Erro ao adicionar curso no Firestore, salvando localmente:", e);
+                    const fallbackCourse: Course = {
+                      ...course,
+                      id: 'local-' + Date.now(),
+                      createdAt: Date.now()
+                    };
+                    setCourses(prev => {
+                      const updated = [fallbackCourse, ...prev];
+                      try {
+                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                      } catch (err) {
+                        console.warn("Erro ao salvar fallback de cursos no localStorage:", err);
+                      }
+                      return updated;
+                    });
+                    alert("Curso guardado localmente com sucesso devido à indisponibilidade de conexão externa.");
                   } finally {
                     setIsAppLoading(false);
                   }
@@ -967,9 +1018,30 @@ export default function App() {
                 onDeleteCourse={async (id) => {
                   setIsAppLoading(true);
                   try {
-                    await deleteDoc(doc(db, 'courses', id));
+                    if (id.startsWith('local-')) {
+                      setCourses(prev => {
+                        const updated = prev.filter(c => c.id !== id);
+                        try {
+                          localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                        } catch (err) {
+                          console.warn(err);
+                        }
+                        return updated;
+                      });
+                    } else {
+                      await deleteDoc(doc(db, 'courses', id));
+                    }
                   } catch (e) {
-                    handleFirestoreError(e, OperationType.DELETE, 'courses');
+                    console.error("Erro ao deletar curso no Firestore, removendo localmente:", e);
+                    setCourses(prev => {
+                      const updated = prev.filter(c => c.id !== id);
+                      try {
+                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                      } catch (err) {
+                        console.warn(err);
+                      }
+                      return updated;
+                    });
                   } finally {
                     setIsAppLoading(false);
                   }
@@ -978,9 +1050,30 @@ export default function App() {
                   setIsAppLoading(true);
                   try {
                     const { id, ...data } = updatedCourse;
-                    await updateDoc(doc(db, 'courses', id), data as any);
+                    if (id.startsWith('local-')) {
+                      setCourses(prev => {
+                        const updated = prev.map(c => c.id === id ? updatedCourse : c);
+                        try {
+                          localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                        } catch (err) {
+                          console.warn(err);
+                        }
+                        return updated;
+                      });
+                    } else {
+                      await updateDoc(doc(db, 'courses', id), data as any);
+                    }
                   } catch (e) {
-                    handleFirestoreError(e, OperationType.UPDATE, 'courses');
+                    console.error("Erro ao atualizar curso no Firestore, modificando localmente:", e);
+                    setCourses(prev => {
+                      const updated = prev.map(c => c.id === updatedCourse.id ? updatedCourse : c);
+                      try {
+                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                      } catch (err) {
+                        console.warn(err);
+                      }
+                      return updated;
+                    });
                   } finally {
                     setIsAppLoading(false);
                   }
@@ -1757,18 +1850,29 @@ const AdminView: React.FC<{
     
     // Atualiza o estado imediatamente com um texto informativo temporário
     if (type === 'video') {
-      setNewCourse(prev => ({ ...prev, videoUrl: "Carregando mídia online (Aguarde)..." }));
+      setNewCourse(prev => ({ ...prev, videoUrl: "Carregando mídia (Aguarde)..." }));
     } else {
-      setNewCourse(prev => ({ ...prev, pdfUrl: "Carregando material online (Aguarde)..." }));
+      setNewCourse(prev => ({ ...prev, pdfUrl: "Carregando material (Aguarde)..." }));
     }
 
+    const localId = `local-file-${Date.now()}-${file.name}`;
+    let downloadURL = "";
+    let uploadedToCloud = false;
+
+    // 1. Sempre salva localmente primeiro no IndexedDB para máxima redundância e agilidade local
     try {
-      let downloadURL = "";
-      
-      // Verifica se as credenciais do Supabase estão configuradas para usá-lo como provedor principal
+      await saveLocalFile(localId, file);
+      console.log("Arquivo armazenado em cache local do IndexedDB.");
+    } catch (dbErr) {
+      console.warn("Erro ao registrar backup local no IndexedDB:", dbErr);
+    }
+
+    // 2. Tenta fazer o upload para os provedores de nuvem configurados
+    try {
       const hasSupabase = isConfigured;
       
       if (hasSupabase) {
+        console.log("Iniciando upload para o Supabase Storage...");
         const filePath = `courses/${type}s/${Date.now()}_${file.name}`;
         const { error } = await supabase.storage
           .from('videos-sistema')
@@ -1786,40 +1890,37 @@ const AdminView: React.FC<{
           .getPublicUrl(filePath);
           
         downloadURL = publicUrl;
+        uploadedToCloud = true;
       } else {
-        // Fallback automático para o Firebase Storage para manter máxima resiliência e facilidade em ambiente local/limpo
-        console.warn("Chaves do Supabase não configuradas nas variáveis de ambiente. Utilizando Firebase Storage como fallback.");
+        // Fallback automático para o Firebase Storage
+        console.log("Iniciando upload para o Firebase Storage...");
         const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name}`);
         const snapshot = await uploadBytes(storageRef, file);
         downloadURL = await getDownloadURL(snapshot.ref);
+        uploadedToCloud = true;
       }
-      
-      // Salva também no IndexedDB como um backup de cache local útil
-      const localId = `local-file-${Date.now()}-${file.name}`;
-      try {
-        await saveLocalFile(localId, file);
-      } catch (e) {
-        console.warn("Erro ao salvar cópia local de cache no IndexedDB:", e);
-      }
-
-      // Define a URL pública para ser gravada no Firestore para todos os usuários
-      if (type === 'video') {
-        setNewCourse(prev => ({ ...prev, videoUrl: downloadURL }));
-      } else {
-        setNewCourse(prev => ({ ...prev, pdfUrl: downloadURL }));
-      }
-      alert(`${type.toUpperCase()} enviado com sucesso e disponibilizado online para todos!`);
-    } catch (error: any) {
-      console.error("Erro ao hospedar arquivo no provedor de nuvem:", error);
-      if (type === 'video') {
-        setNewCourse(prev => ({ ...prev, videoUrl: "" }));
-      } else {
-        setNewCourse(prev => ({ ...prev, pdfUrl: "" }));
-      }
-      alert(`Erro: O arquivo precisa ser salvo online para que todos os alunos tenham acesso. Detalhes: ${error?.message || error}`);
-    } finally {
-      setIsUploading(false);
+    } catch (cloudError: any) {
+      console.warn("Upload de nuvem falhou, utilizando armazenamento do navegador:", cloudError);
+      // Se falhar o upload na nuvem, faz o fallback perfeito para o ID do IndexedDB local
+      downloadURL = localId;
+      uploadedToCloud = false;
     }
+
+    // 3. Define a URL de mídia correspondente
+    if (type === 'video') {
+      setNewCourse(prev => ({ ...prev, videoUrl: downloadURL }));
+    } else {
+      setNewCourse(prev => ({ ...prev, pdfUrl: downloadURL }));
+    }
+
+    // 4. Exibe notificação de feedback amigável
+    if (uploadedToCloud) {
+      alert(`${type.toUpperCase()} enviado com sucesso e disponibilizado online para todos!`);
+    } else {
+      alert(`${type.toUpperCase()} salvo localmente no seu navegador para testes!`);
+    }
+
+    setIsUploading(false);
   };
 
   const handleSubmitUser = (e: React.FormEvent) => {
@@ -1840,6 +1941,7 @@ const AdminView: React.FC<{
     if (!urlStr) return false;
     const trimmed = urlStr.trim().toLowerCase();
     
+    if (trimmed.startsWith('local-file-')) return true;
     if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) return true;
     if (trimmed.includes('sharepoint.com')) return true;
     if (trimmed.includes('onedrive.live.com') || trimmed.includes('1drv.ms')) return true;
