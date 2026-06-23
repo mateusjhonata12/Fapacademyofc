@@ -35,34 +35,28 @@ import {
   Sun,
   Moon,
   Loader2,
-  Rewind,
-  FastForward,
-  RotateCcw,
-  RotateCw,
   Pause,
   Maximize,
-  ArrowBigLeft,
-  ArrowBigRight,
   ExternalLink,
   VolumeX,
   Volume1,
   Volume2,
-  FileCode
+  RotateCcw,
+  RotateCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
 import { GeminiVideoUploader } from './components/GeminiVideoUploader';
 import { 
-  signInAnonymously,
-  onAuthStateChanged,
-  OAuthProvider,
-  signInWithPopup
-} from 'firebase/auth';
+  auth, 
+  db, 
+  handleFirestoreError, 
+  OperationType 
+} from './lib/firebase';
 import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL 
-} from 'firebase/storage';
+  signInWithPopup, 
+  OAuthProvider 
+} from 'firebase/auth';
 import { 
   BarChart as RechartsBarChart, 
   Bar, 
@@ -75,8 +69,6 @@ import {
   Cell,
   PieChart,
   Pie,
-  LineChart,
-  Line,
   AreaChart,
   Area
 } from 'recharts';
@@ -93,9 +85,8 @@ import {
   query,
   where
 } from 'firebase/firestore';
-import { db, auth, storage, handleFirestoreError, OperationType } from './lib/firebase';
 import { saveLocalFile, getLocalFile } from './lib/indexedDB';
-import { supabase, isConfigured } from './lib/supabase';
+import { supabase } from './lib/supabase';
 
 const downloadFile = async (url: string, filename: string) => {
   if (!url) return;
@@ -200,7 +191,7 @@ const COURSES: Course[] = [
     duration: '20 min',
     difficulty: 'Avançado',
     thumbnail: 'https://i.pinimg.com/736x/fc/a0/2e/fca02e2d40c27ff314f401f86e13d75f.jpg',
-    videoUrl: 'https://mailadventistas.sharepoint.com/:v:/s/SAD-USB-IAP/iapatendimento/IQBnbmk1XWx6RZKdV7HeOLU0AQOOwNjwiyBGeF5gjbrgxw0?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D&e=gobcbL'
+    videoUrl: 'https://mailadventistas.sharepoint.com/:v:/s/SAD-USB-IAP/iapatendimento/IQBnbmk1XWx6RZKdV7HeOLU0AQOOwNjwiyBGeF5gjbrgxw0?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZorbTW9kZSI6InZpZXcifX0%3D&e=gobcbL'
   },
   {
     id: '4',
@@ -427,7 +418,6 @@ export default function App() {
 
   // --- Listeners de Dados ---
   useEffect(() => {
-    // Carrega de antemão do localStorage caso esteja totalmente sem conexão
     const offlineCoursesJSON = localStorage.getItem('fapacademy_offline_courses');
     let offlineCourses: Course[] = [];
     if (offlineCoursesJSON) {
@@ -438,12 +428,10 @@ export default function App() {
       }
     }
 
-    // Cursos (Sempre visíveis publicamente agora)
     const coursesUnsubscribe = onSnapshot(collection(db, 'courses'), 
       async (snapshot) => {
         const coursesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Course));
         
-        // Resolve local file URLs from IndexedDB if they are local keys
         const updatedCourses = await Promise.all(coursesData.map(async (course) => {
           const updatedCourse = { ...course };
           if (course.videoUrl && course.videoUrl.startsWith('local-file-')) {
@@ -469,13 +457,11 @@ export default function App() {
           return updatedCourse;
         }));
 
-        // Une os cursos do banco com os cursos offline salvos localmente
         const allCourses = [...offlineCourses, ...updatedCourses];
         const uniqueCoursesMap = new Map<string, Course>();
         allCourses.forEach(c => uniqueCoursesMap.set(c.id, c));
         const mergedCourses = Array.from(uniqueCoursesMap.values());
 
-        // Sort: items with createdAt descending, then items without by numeric ID ascending
         mergedCourses.sort((a, b) => {
           const aTime = a.createdAt || 0;
           const bTime = b.createdAt || 0;
@@ -502,7 +488,6 @@ export default function App() {
       },
       async (error) => {
         console.error("Erro ao carregar cursos do Firestore:", error);
-        // Fallback local total se o Firestore falhar totalmente (off-line)
         const staticCoursesWithBlobs = await Promise.all(COURSES.map(async (course) => {
           const updatedCourse = { ...course };
           if (course.videoUrl && course.videoUrl.startsWith('local-file-')) {
@@ -529,7 +514,6 @@ export default function App() {
     };
   }, []);
 
-  // Listener de Usuários (Apenas Administradores podem listar todos)
   useEffect(() => {
     const isAdmin = currentUser?.role?.toLowerCase() === 'admin' || currentUser?.email === 'mateusjhonata123@gmail.com';
     if (!currentUser || !isAdmin) {
@@ -555,7 +539,6 @@ export default function App() {
     return () => usersUnsubscribe();
   }, [currentUser]);
 
-  // --- Carregar Sessão ---
   useEffect(() => {
     const savedUser = localStorage.getItem('fapacademy_user');
     if (savedUser) {
@@ -570,7 +553,6 @@ export default function App() {
   const handleLogin = async (loginData: Pick<User, 'email' | 'password'>) => {
     setIsAppLoading(true);
     try {
-      // Busca limitada para satisfazer as regras e eficiência
       const q = query(
         collection(db, 'users'), 
         where('email', '==', loginData.email.toLowerCase()), 
@@ -599,7 +581,7 @@ export default function App() {
     try {
       const provider = new OAuthProvider('microsoft.com');
       provider.setCustomParameters({
-        tenant: 'organizations', // Restringe a contas corporativas Microsoft (Azure AD)
+        tenant: 'organizations',
         prompt: 'select_account'
       });
       
@@ -610,7 +592,6 @@ export default function App() {
         throw new Error("Não foi possível obter o e-mail da conta Microsoft.");
       }
       
-      // Verifica se o usuário já existe na coleção 'users' do Firestore
       const q = query(
         collection(db, 'users'), 
         where('email', '==', email)
@@ -623,7 +604,6 @@ export default function App() {
         const userDoc = querySnapshot.docs[0];
         userObj = { id: userDoc.id, ...userDoc.data() } as User;
       } else {
-        // Registra automaticamente o usuário corporativo novo
         const newId = result.user.uid || Math.random().toString(36).substr(2, 9);
         const name = result.user.displayName || email.split('@')[0].toUpperCase();
         const newUser: User = {
@@ -631,7 +611,7 @@ export default function App() {
           name,
           email,
           role: 'user',
-          password: 'corporate-oauth-user' // Senha padrão fictícia de controle
+          password: 'corporate-oauth-user'
         };
         await setDoc(doc(db, 'users', newId), newUser);
         userObj = newUser;
@@ -642,18 +622,14 @@ export default function App() {
     } catch (error: any) {
       console.error("Erro no login Microsoft:", error);
       
-      // Tratamento amigável caso o provedor Microsoft ainda não esteja ativo no Console do Firebase
       if (error.code === 'auth/operation-not-allowed' || error.code === 'auth/configuration-not-found' || error.message?.includes('provider') || error.code?.includes('configuration')) {
         const wishToSimulate = window.confirm(
           "O login integrado com Microsoft 365 / Azure AD não está ativado no Console do Firebase de desenvolvimento.\n\n" +
-          "Para ativá-lo em ambiente real:\n" +
-          "1. Vá ao Firebase Console -> Authentication -> Sign-in Method\n" +
-          "2. Clique em 'Adicionar novo provedor' -> Microsoft e insira o Application ID e Secret do Azure AD.\n\n" +
-          "Gostaria de rodar uma simulação de autenticação com e-mail corporativo para ver como o fluxo e o controle de progresso se comportam?"
+          "Gostaria de rodar uma simulação de autenticação com e-mail corporativo para ver como o fluxo se comporta?"
         );
         
         if (wishToSimulate) {
-          const testEmail = window.prompt("Insira um endereço de e-mail corporativo fictício (ex: seu.nome@suaempresa.com.br):", "colaborador@fap.com.br");
+          const testEmail = window.prompt("Insira um endereço de e-mail corporativo fictício:", "colaborador@fap.com.br");
           if (testEmail && testEmail.trim()) {
             const emailClean = testEmail.trim().toLowerCase();
             const q = query(
@@ -694,7 +670,6 @@ export default function App() {
     setActiveTab('Home');
   };
 
-  // --- Carregar Progresso ---
   useEffect(() => {
     const saved = localStorage.getItem('fapacademy_progress');
     if (saved) {
@@ -706,12 +681,10 @@ export default function App() {
     }
   }, []);
 
-  // --- Salvar Progresso ---
   useEffect(() => {
     localStorage.setItem('fapacademy_progress', JSON.stringify(completedCourses));
   }, [completedCourses]);
 
-  // --- Lógica de Filtro ---
   const filteredCourses = useMemo(() => {
     return courses
       .filter(course => {
@@ -754,7 +727,6 @@ export default function App() {
           animate={{ opacity: 1 }}
           className={`flex min-h-screen font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#F1F5F9] text-slate-900'}`}
         >
-          {/* --- Overlay Mobile --- */}
           <AnimatePresence>
             {isSidebarOpen && (
               <motion.div 
@@ -767,487 +739,470 @@ export default function App() {
             )}
           </AnimatePresence>
 
-          {/* --- Sidebar --- */}
-      <aside 
-        className={`fixed inset-y-0 left-0 z-50 bg-[#0F172A] text-white transition-all duration-500 ease-in-out lg:static overflow-hidden ${
-          isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 w-0'
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <button 
-            onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-            className="flex items-center gap-3 px-6 py-8 hover:opacity-80 transition-opacity w-full text-left"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#3B82F6]">
-              <GraduationCap size={24} />
-            </div>
-            <span className="text-xl font-bold tracking-tight">FapAcademy</span>
-          </button>
-
-          {/* Navegação */}
-          <nav className="flex-1 space-y-1 px-4">
-            <SidebarItem 
-              icon={<HomeIcon size={20} />} 
-              label="Início" 
-              active={activeTab === 'Home'} 
-              onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-            />
-            <SidebarItem 
-              icon={<LayoutDashboard size={20} />} 
-              label="Todos os Cursos" 
-              active={activeTab === 'Todos'} 
-              onClick={() => { setActiveTab('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-            />
-            <SidebarItem 
-              icon={<Sparkles size={20} className="text-blue-500 animate-pulse" />} 
-              label="Análise IA Gemini" 
-              active={activeTab === 'GeminiVideo'} 
-              onClick={() => { setActiveTab('GeminiVideo'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-            />
-            
-            <div className="pt-4 pb-2">
-              <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sistemas</p>
-            </div>
-            <SidebarItem 
-              icon={<BookOpen size={20} />} 
-              label="7Edu" 
-              active={activeTab === '7Edu'} 
-              onClick={() => { setActiveTab('7Edu'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-            />
-            <SidebarItem 
-              icon={<Settings size={20} />} 
-              label="TOTVS" 
-              active={activeTab === 'TOTVS'} 
-              onClick={() => { setActiveTab('TOTVS'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-            />
-
-            {currentUser && (currentUser.role?.toLowerCase() === 'admin' || currentUser.email === 'mateusjhonata123@gmail.com') && (
-                <>
-                  <div className="pt-4 pb-2">
-                    <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Administração</p>
-                  </div>
-                  <SidebarItem 
-                    icon={<Users size={20} />} 
-                    label="Controle Geral" 
-                    active={activeTab === 'Admin'} 
-                    onClick={() => { setActiveTab('Admin'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-                  />
-                </>
-              )}
-          </nav>
-
-          {/* Botão de Alternância de Tema */}
-          <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Tema {theme === 'dark' ? 'Escuro' : 'Claro'}</span>
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                theme === 'dark' ? 'bg-[#3B82F6]' : 'bg-slate-700'
-              }`}
-              title="Alternar tema"
-            >
-              <div
-                className={`flex h-4 w-4 items-center justify-center rounded-full bg-white transition-transform ${
-                  theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              >
-                {theme === 'dark' ? (
-                  <Moon size={10} className="text-indigo-600" />
-                ) : (
-                  <Sun size={10} className="text-amber-500" />
-                )}
-              </div>
-            </button>
-          </div>
-
-          {/* Progresso Geral na Sidebar */}
-          <div className="px-6 py-6 border-t border-slate-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-slate-400">Seu Progresso</span>
-              <span className="text-xs font-bold text-[#3B82F6]">{progressPercentage}%</span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercentage}%` }}
-                className="h-full bg-[#3B82F6]"
-              />
-            </div>
-            <p className="mt-2 text-[10px] text-slate-500">
-              {completedCourses.length} de {COURSES.length} aulas concluídas
-            </p>
-          </div>
-
-          {/* User Profile (Footer Sidebar) */}
-          <div className="border-t border-slate-800 p-4">
-            <div className="flex items-center gap-3 rounded-lg p-2 bg-slate-800/50">
-              <div className="h-8 w-8 rounded-full bg-[#3B82F6] flex items-center justify-center text-xs font-bold">
-                {currentUser?.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-medium">{currentUser?.name}</p>
-                <p className="truncate text-xs text-slate-400">{currentUser?.email}</p>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="p-1.5 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
-                title="Sair"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* --- Conteúdo Principal --- */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Header Mobile & Desktop Search */}
-        <header className={`sticky top-0 z-30 flex h-16 items-center justify-between border-b px-4 lg:px-8 transition-colors duration-300 ${
-          theme === 'dark' ? 'border-slate-800 bg-[#0F172A] text-white' : 'border-slate-200 bg-white text-slate-900'
-        }`}>
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`rounded-md p-2 transition-colors ${
-              theme === 'dark' ? 'hover:bg-slate-800 text-white' : 'hover:bg-slate-100'
+          <aside 
+            className={`fixed inset-y-0 left-0 z-50 bg-[#0F172A] text-white transition-all duration-500 ease-in-out lg:static overflow-hidden ${
+              isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 w-0'
             }`}
           >
-            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-
-          <div className="flex flex-1 items-center justify-center px-4 lg:justify-start lg:px-0">
-            {activeTab !== 'Home' && activeTab !== 'GeminiVideo' && (
-              <div className="relative w-full max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Pesquisar procedimento..." 
-                  className={`w-full rounded-full border py-2 pl-10 pr-4 text-sm outline-none focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20 transition-all ${
-                    theme === 'dark' 
-                      ? 'bg-slate-850 border-slate-700 text-slate-100 placeholder-slate-500' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="text-xs font-medium">FapAcademy v1.0</span>
-            </div>
-          </div>
-        </header>
-
-        {/* Área de Conteúdo Dinâmica */}
-        <div className="flex-1 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            {activeTab === 'Home' ? (
-              <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
-            ) : activeTab === 'GeminiVideo' ? (
-              <GeminiVideoUploader key="gemini-video" theme={theme} />
-            ) : activeTab === 'Admin' ? (
-              <AdminView 
-                key="admin" 
-                users={users} 
-                onAddUser={async (user) => {
-                  setIsAppLoading(true);
-                  try {
-                    const { id, ...data } = user;
-                    await setDoc(doc(db, 'users', id), data);
-                  } catch (e) {
-                    handleFirestoreError(e, OperationType.CREATE, 'users');
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }} 
-                onDeleteUser={async (id) => {
-                  setIsAppLoading(true);
-                  try {
-                    await deleteDoc(doc(db, 'users', id));
-                  } catch (e) {
-                    handleFirestoreError(e, OperationType.DELETE, 'users');
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }}
-                onUpdateUser={async (updatedUser) => {
-                  setIsAppLoading(true);
-                  try {
-                    const { id, ...data } = updatedUser;
-                    await updateDoc(doc(db, 'users', id), data as any);
-                  } catch (e) {
-                    handleFirestoreError(e, OperationType.UPDATE, 'users');
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }}
-                courses={courses}
-                onAddCourse={async (course) => {
-                  setIsAppLoading(true);
-                  try {
-                    const { id, ...data } = course;
-                    await addDoc(collection(db, 'courses'), {
-                      ...data,
-                      createdAt: Date.now()
-                    });
-                  } catch (e) {
-                    console.error("Erro ao adicionar curso no Firestore, salvando localmente:", e);
-                    const fallbackCourse: Course = {
-                      ...course,
-                      id: 'local-' + Date.now(),
-                      createdAt: Date.now()
-                    };
-                    setCourses(prev => {
-                      const updated = [fallbackCourse, ...prev];
-                      try {
-                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                      } catch (err) {
-                        console.warn("Erro ao salvar fallback de cursos no localStorage:", err);
-                      }
-                      return updated;
-                    });
-                    alert("Curso guardado localmente com sucesso devido à indisponibilidade de conexão externa.");
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }}
-                onDeleteCourse={async (id) => {
-                  setIsAppLoading(true);
-                  try {
-                    if (id.startsWith('local-')) {
-                      setCourses(prev => {
-                        const updated = prev.filter(c => c.id !== id);
-                        try {
-                          localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                        } catch (err) {
-                          console.warn(err);
-                        }
-                        return updated;
-                      });
-                    } else {
-                      await deleteDoc(doc(db, 'courses', id));
-                    }
-                  } catch (e) {
-                    console.error("Erro ao deletar curso no Firestore, removendo localmente:", e);
-                    setCourses(prev => {
-                      const updated = prev.filter(c => c.id !== id);
-                      try {
-                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                      } catch (err) {
-                        console.warn(err);
-                      }
-                      return updated;
-                    });
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }}
-                onUpdateCourse={async (updatedCourse) => {
-                  setIsAppLoading(true);
-                  try {
-                    const { id, ...data } = updatedCourse;
-                    if (id.startsWith('local-')) {
-                      setCourses(prev => {
-                        const updated = prev.map(c => c.id === id ? updatedCourse : c);
-                        try {
-                          localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                        } catch (err) {
-                          console.warn(err);
-                        }
-                        return updated;
-                      });
-                    } else {
-                      await updateDoc(doc(db, 'courses', id), data as any);
-                    }
-                  } catch (e) {
-                    console.error("Erro ao atualizar curso no Firestore, modificando localmente:", e);
-                    setCourses(prev => {
-                      const updated = prev.map(c => c.id === updatedCourse.id ? updatedCourse : c);
-                      try {
-                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                      } catch (err) {
-                        console.warn(err);
-                      }
-                      return updated;
-                    });
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }}
-                onSyncData={async () => {
-                  setIsAppLoading(true);
-                  try {
-                    // Sync original courses - Use a more robust check (delete existing and rewrite to ensure 25)
-                    const coursesCol = collection(db, 'courses');
-                    const currentCoursesSnap = await getDocs(coursesCol);
-                    
-                    // Optional: Clean up existing to reset perfectly
-                    if (confirm("Deseja resetar todas as aulas para a versão padrão de 25 cursos? Isso removerá aulas personalizadas.")) {
-                      for (const docRef of currentCoursesSnap.docs) {
-                        await deleteDoc(doc(db, 'courses', docRef.id));
-                      }
-                      
-                      for (const course of COURSES) {
-                        const { id, ...data } = course;
-                        await setDoc(doc(db, 'courses', id), data);
-                      }
-                    }
-
-                    // Sync original users
-                    for (const user of INITIAL_USERS) {
-                      const userDoc = await getDocFromServer(doc(db, 'users', user.id));
-                      if (!userDoc.exists()) {
-                        const { id, ...data } = user;
-                        await setDoc(doc(db, 'users', id), data);
-                      }
-                    }
-                    alert("Sistema sincronizado! 25 aulas restauradas.");
-                  } catch (e) {
-                    console.error("Erro ao sincronizar dados", e);
-                  } finally {
-                    setIsAppLoading(false);
-                  }
-                }}
-                theme={theme}
-              />
-            ) : (
-              <motion.div 
-                key="study-area"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="p-4 lg:p-8"
+            <div className="flex h-full flex-col">
+              <button 
+                onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+                className="flex items-center gap-3 px-6 py-8 hover:opacity-80 transition-opacity w-full text-left"
               >
-                <div className="mb-8">
-                  <h1 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                    {activeTab === 'Todos' ? 'Todos os Treinamentos' : `Treinamentos ${activeTab}`}
-                  </h1>
-                  <p className={`mt-2 transition-colors ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                    Explore os procedimentos operacionais padrão para otimizar seu fluxo de trabalho.
-                  </p>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#3B82F6]">
+                  <GraduationCap size={24} />
                 </div>
+                <span className="text-xl font-bold tracking-tight">FapAcademy</span>
+              </button>
 
-                {/* Grid de Cards */}
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  <AnimatePresence mode="popLayout">
-                    {filteredCourses.map((course) => (
-                      <CourseCard 
-                        key={course.id} 
-                        course={course} 
-                        isCompleted={completedCourses.includes(course.id)}
-                        onToggleComplete={toggleComplete}
-                        onOpenMedia={(type) => {
-                          setSelectedCourse(course);
-                          setModalType(type);
-                        }}
-                        theme={theme}
+              <nav className="flex-1 space-y-1 px-4">
+                <SidebarItem 
+                  icon={<HomeIcon size={20} />} 
+                  label="Início" 
+                  active={activeTab === 'Home'} 
+                  onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+                />
+                <SidebarItem 
+                  icon={<LayoutDashboard size={20} />} 
+                  label="Todos os Cursos" 
+                  active={activeTab === 'Todos'} 
+                  onClick={() => { setActiveTab('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+                />
+                <SidebarItem 
+                  icon={<Sparkles size={20} className="text-blue-500 animate-pulse" />} 
+                  label="Análise IA Gemini" 
+                  active={activeTab === 'GeminiVideo'} 
+                  onClick={() => { setActiveTab('GeminiVideo'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+                />
+                
+                <div className="pt-4 pb-2">
+                  <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sistemas</p>
+                </div>
+                <SidebarItem 
+                  icon={<BookOpen size={20} />} 
+                  label="7Edu" 
+                  active={activeTab === '7Edu'} 
+                  onClick={() => { setActiveTab('7Edu'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+                />
+                <SidebarItem 
+                  icon={<Settings size={20} />} 
+                  label="TOTVS" 
+                  active={activeTab === 'TOTVS'} 
+                  onClick={() => { setActiveTab('TOTVS'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+                />
+
+                {currentUser && (currentUser.role?.toLowerCase() === 'admin' || currentUser.email === 'mateusjhonata123@gmail.com') && (
+                    <>
+                      <div className="pt-4 pb-2">
+                        <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Administração</p>
+                      </div>
+                      <SidebarItem 
+                        icon={<Users size={20} />} 
+                        label="Controle Geral" 
+                        active={activeTab === 'Admin'} 
+                        onClick={() => { setActiveTab('Admin'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
                       />
-                    ))}
-                  </AnimatePresence>
-                </div>
+                    </>
+                  )}
+              </nav>
 
-                {filteredCourses.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <div className="rounded-full bg-slate-200 p-6 mb-4">
-                      <Search size={48} className="text-slate-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-900">Nenhum resultado encontrado</h3>
-                    <p className="text-slate-500">Tente ajustar sua busca ou filtro para encontrar o que procura.</p>
+              <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Tema {theme === 'dark' ? 'Escuro' : 'Claro'}</span>
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    theme === 'dark' ? 'bg-[#3B82F6]' : 'bg-slate-700'
+                  }`}
+                  title="Alternar tema"
+                >
+                  <div
+                    className={`flex h-4 w-4 items-center justify-center rounded-full bg-white transition-transform ${
+                      theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  >
+                    {theme === 'dark' ? (
+                      <Moon size={10} className="text-indigo-600" />
+                    ) : (
+                      <Sun size={10} className="text-amber-500" />
+                    )}
+                  </div>
+                </button>
+              </div>
+
+              <div className="px-6 py-6 border-t border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-slate-400">Seu Progresso</span>
+                  <span className="text-xs font-bold text-[#3B82F6]">{progressPercentage}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercentage}%` }}
+                    className="h-full bg-[#3B82F6]"
+                  />
+                </div>
+                <p className="mt-2 text-[10px] text-slate-500">
+                  {completedCourses.length} de {COURSES.length} aulas concluídas
+                </p>
+              </div>
+
+              <div className="border-t border-slate-800 p-4">
+                <div className="flex items-center gap-3 rounded-lg p-2 bg-slate-800/50">
+                  <div className="h-8 w-8 rounded-full bg-[#3B82F6] flex items-center justify-center text-xs font-bold">
+                    {currentUser?.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="truncate text-sm font-medium">{currentUser?.name}</p>
+                    <p className="truncate text-xs text-slate-400">{currentUser?.email}</p>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="p-1.5 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
+                    title="Sair"
+                  >
+                    <LogOut size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <main className="flex-1 flex flex-col min-w-0">
+            <header className={`sticky top-0 z-30 flex h-16 items-center justify-between border-b px-4 lg:px-8 transition-colors duration-300 ${
+              theme === 'dark' ? 'border-slate-800 bg-[#0F172A] text-white' : 'border-slate-200 bg-white text-slate-900'
+            }`}>
+              <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`rounded-md p-2 transition-colors ${
+                  theme === 'dark' ? 'hover:bg-slate-800 text-white' : 'hover:bg-slate-100'
+                }`}
+              >
+                {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+
+              <div className="flex flex-1 items-center justify-center px-4 lg:justify-start lg:px-0">
+                {activeTab !== 'Home' && activeTab !== 'GeminiVideo' && (
+                  <div className="relative w-full max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Pesquisar procedimento..." 
+                      className={`w-full rounded-full border py-2 pl-10 pr-4 text-sm outline-none focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20 transition-all ${
+                        theme === 'dark' 
+                          ? 'bg-slate-850 border-slate-700 text-slate-100 placeholder-slate-500' 
+                          : 'bg-slate-50 border-slate-200 text-slate-900'
+                      }`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                   </div>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Modal de Mídia */}
-        {(() => {
-          const liveSelectedCourse = selectedCourse 
-            ? (courses.find(c => c.id === selectedCourse.id) || selectedCourse)
-            : null;
-          return (
-            <MediaModal 
-              isOpen={!!modalType} 
-              type={modalType} 
-              course={liveSelectedCourse} 
-              courses={courses}
-              onSelectCourse={(c) => {
-                setSelectedCourse(c);
-              }}
-              isCompleted={liveSelectedCourse ? completedCourses.includes(liveSelectedCourse.id) : false}
-              onToggleComplete={toggleComplete}
-              onClose={() => {
-                setModalType(null);
-                setSelectedCourse(null);
-              }} 
-              onPrev={(() => {
-                if (!liveSelectedCourse) return undefined;
-                const currentIndex = filteredCourses.findIndex(c => c.id === liveSelectedCourse.id);
-                if (currentIndex > 0) {
-                  return () => setSelectedCourse(filteredCourses[currentIndex - 1]);
-                }
-                return undefined;
-              })()}
-              onNext={(() => {
-                if (!liveSelectedCourse) return undefined;
-                const currentIndex = filteredCourses.findIndex(c => c.id === liveSelectedCourse.id);
-                if (currentIndex !== -1 && currentIndex < filteredCourses.length - 1) {
-                  return () => setSelectedCourse(filteredCourses[currentIndex + 1]);
-                }
-                return undefined;
-              })()}
-            />
-          );
-        })()}
-
-        {/* Achievement Toast */}
-        <AnimatePresence>
-          {showToast && (
-            <motion.div
-              initial={{ opacity: 0, y: 50, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.8 }}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl shadow-emerald-200"
-            >
-              <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <Trophy size={24} className="text-white" />
               </div>
-              <div>
-                <p className="font-bold text-lg leading-none mb-1">Parabéns!</p>
-                <p className="text-emerald-100 text-sm">Você concluiu mais um treinamento.</p>
-              </div>
-              <button 
-                onClick={() => setShowToast(false)}
-                className="ml-4 p-1 hover:bg-white/10 rounded-md transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
 
-      {/* AI Assistant Chatbot with tool and voice capabilities */}
-      <AIAssistant 
-        courses={courses} 
-        onOpenCourse={(course, type) => {
-          setSelectedCourse(course);
-          setModalType(type);
-          setTimeout(() => {
-            if ((window as any).__mediaModalSetTab) {
-              (window as any).__mediaModalSetTab(type);
-            }
-          }, 50);
-        }} 
-      />
-    </motion.div>
-  )}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <span className="text-xs font-medium">FapAcademy v1.0</span>
+                </div>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto">
+              <AnimatePresence mode="wait">
+                {activeTab === 'Home' ? (
+                  <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
+                ) : activeTab === 'GeminiVideo' ? (
+                  <GeminiVideoUploader key="gemini-video" theme={theme} />
+                ) : activeTab === 'Admin' ? (
+                  <AdminView 
+                    key="admin" 
+                    users={users} 
+                    onAddUser={async (user) => {
+                      setIsAppLoading(true);
+                      try {
+                        const { id, ...data } = user;
+                        await setDoc(doc(db, 'users', id), data);
+                      } catch (e) {
+                        handleFirestoreError(e, OperationType.CREATE, 'users');
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }} 
+                    onDeleteUser={async (id) => {
+                      setIsAppLoading(true);
+                      try {
+                        await deleteDoc(doc(db, 'users', id));
+                      } catch (e) {
+                        handleFirestoreError(e, OperationType.DELETE, 'users');
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }}
+                    onUpdateUser={async (updatedUser) => {
+                      setIsAppLoading(true);
+                      try {
+                        const { id, ...data } = updatedUser;
+                        await updateDoc(doc(db, 'users', id), data as any);
+                      } catch (e) {
+                        handleFirestoreError(e, OperationType.UPDATE, 'users');
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }}
+                    courses={courses}
+                    onAddCourse={async (course) => {
+                      setIsAppLoading(true);
+                      try {
+                        const { id, ...data } = course;
+                        await addDoc(collection(db, 'courses'), {
+                          ...data,
+                          createdAt: Date.now()
+                        });
+                      } catch (e) {
+                        console.error("Erro ao adicionar curso no Firestore, salvando localmente:", e);
+                        const fallbackCourse: Course = {
+                          ...course,
+                          id: 'local-' + Date.now(),
+                          createdAt: Date.now()
+                        };
+                        setCourses(prev => {
+                          const updated = [fallbackCourse, ...prev];
+                          try {
+                            localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                          } catch (err) {
+                            console.warn("Erro ao salvar fallback de cursos no localStorage:", err);
+                          }
+                          return updated;
+                        });
+                        alert("Curso guardado localmente com sucesso devido à indisponibilidade de conexão externa.");
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }}
+                    onDeleteCourse={async (id) => {
+                      setIsAppLoading(true);
+                      try {
+                        if (id.startsWith('local-')) {
+                          setCourses(prev => {
+                            const updated = prev.filter(c => c.id !== id);
+                            try {
+                              localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                            } catch (err) {
+                              console.warn(err);
+                            }
+                            return updated;
+                          });
+                        } else {
+                          await deleteDoc(doc(db, 'courses', id));
+                        }
+                      } catch (e) {
+                        console.error("Erro ao deletar curso no Firestore, removendo localmente:", e);
+                        setCourses(prev => {
+                          const updated = prev.filter(c => c.id !== id);
+                          try {
+                            localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                          } catch (err) {
+                            console.warn(err);
+                          }
+                          return updated;
+                        });
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }}
+                    onUpdateCourse={async (updatedCourse) => {
+                      setIsAppLoading(true);
+                      try {
+                        const { id, ...data } = updatedCourse;
+                        if (id.startsWith('local-')) {
+                          setCourses(prev => {
+                            const updated = prev.map(c => c.id === id ? updatedCourse : c);
+                            try {
+                              localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                            } catch (err) {
+                              console.warn(err);
+                            }
+                            return updated;
+                          });
+                        } else {
+                          await updateDoc(doc(db, 'courses', id), data as any);
+                        }
+                      } catch (e) {
+                        console.error("Erro ao atualizar curso no Firestore, modificando localmente:", e);
+                        setCourses(prev => {
+                          const updated = prev.map(c => c.id === updatedCourse.id ? updatedCourse : c);
+                          try {
+                            localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
+                          } catch (err) {
+                            console.warn(err);
+                          }
+                          return updated;
+                        });
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }}
+                    onSyncData={async () => {
+                      setIsAppLoading(true);
+                      try {
+                        const coursesCol = collection(db, 'courses');
+                        const currentCoursesSnap = await getDocs(coursesCol);
+                        
+                        if (confirm("Deseja resetar todas as aulas para a versão padrão de 25 cursos? Isso removerá aulas personalizadas.")) {
+                          for (const docRef of currentCoursesSnap.docs) {
+                            await deleteDoc(doc(db, 'courses', docRef.id));
+                          }
+                          
+                          for (const course of COURSES) {
+                            const { id, ...data } = course;
+                            await setDoc(doc(db, 'courses', id), data);
+                          }
+                        }
+
+                        for (const user of INITIAL_USERS) {
+                          const userDoc = await getDocFromServer(doc(db, 'users', user.id));
+                          if (!userDoc.exists()) {
+                            const { id, ...data } = user;
+                            await setDoc(doc(db, 'users', id), data);
+                          }
+                        }
+                        alert("Sistema sincronizado! 25 aulas restauradas.");
+                      } catch (e) {
+                        console.error("Erro ao sincronizar dados", e);
+                      } finally {
+                        setIsAppLoading(false);
+                      }
+                    }}
+                    theme={theme}
+                  />
+                ) : (
+                  <motion.div 
+                    key="study-area"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="p-4 lg:p-8"
+                  >
+                    <div className="mb-8">
+                      <h1 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {activeTab === 'Todos' ? 'Todos os Treinamentos' : `Treinamentos ${activeTab}`}
+                      </h1>
+                      <p className={`mt-2 transition-colors ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Explore os procedimentos operacionais padrão para otimizar seu fluxo de trabalho.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                      <AnimatePresence mode="popLayout">
+                        {filteredCourses.map((course) => (
+                          <CourseCard 
+                            key={course.id} 
+                            course={course} 
+                            isCompleted={completedCourses.includes(course.id)}
+                            onToggleComplete={toggleComplete}
+                            onOpenMedia={(type) => {
+                              setSelectedCourse(course);
+                              modalType === type ? setModalType(null) : setModalType(type);
+                            }}
+                            theme={theme}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </div>
+
+                    {filteredCourses.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="rounded-full bg-slate-200 p-6 mb-4">
+                          <Search size={48} className="text-slate-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-slate-900">Nenhum resultado encontrado</h3>
+                        <p className="text-slate-500">Tente ajustar sua busca ou filtro para encontrar o que procura.</p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {(() => {
+              const liveSelectedCourse = selectedCourse 
+                ? (courses.find(c => c.id === selectedCourse.id) || selectedCourse)
+                : null;
+              return (
+                <MediaModal 
+                  isOpen={!!modalType} 
+                  type={modalType} 
+                  course={liveSelectedCourse} 
+                  courses={courses}
+                  onSelectCourse={(c) => {
+                    setSelectedCourse(c);
+                  }}
+                  isCompleted={liveSelectedCourse ? completedCourses.includes(liveSelectedCourse.id) : false}
+                  onToggleComplete={toggleComplete}
+                  onClose={() => {
+                    setModalType(null);
+                    setSelectedCourse(null);
+                  }} 
+                  onPrev={(() => {
+                    if (!liveSelectedCourse) return undefined;
+                    const currentIndex = filteredCourses.findIndex(c => c.id === liveSelectedCourse.id);
+                    if (currentIndex > 0) {
+                      return () => setSelectedCourse(filteredCourses[currentIndex - 1]);
+                    }
+                    return undefined;
+                  })()}
+                  onNext={(() => {
+                    if (!liveSelectedCourse) return undefined;
+                    const currentIndex = filteredCourses.findIndex(c => c.id === liveSelectedCourse.id);
+                    if (currentIndex !== -1 && currentIndex < filteredCourses.length - 1) {
+                      return () => setSelectedCourse(filteredCourses[currentIndex + 1]);
+                    }
+                    return undefined;
+                  })()}
+                />
+              );
+            })()}
+
+            <AnimatePresence>
+              {showToast && (
+                <motion.div
+                  initial={{ opacity: 0, y: 50, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 20, scale: 0.8 }}
+                  className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl shadow-emerald-200"
+                >
+                  <div className="h-10 w-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Trophy size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg leading-none mb-1">Parabéns!</p>
+                    <p className="text-emerald-100 text-sm">Você concluiu mais um treinamento.</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowToast(false)}
+                    className="ml-4 p-1 hover:bg-white/10 rounded-md transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </main>
+
+          <AIAssistant 
+            courses={courses} 
+            onOpenCourse={(course, type) => {
+              setSelectedCourse(course);
+              setModalType(type);
+              setTimeout(() => {
+                if ((window as any).__mediaModalSetTab) {
+                  (window as any).__mediaModalSetTab(type);
+                }
+              }, 50);
+            }} 
+          />
+        </motion.div>
+      )}
       
-      {/* Global Loading Overlay */}
       <AnimatePresence>
         {isAppLoading && (
           <motion.div
@@ -1284,7 +1239,6 @@ const HomeView: React.FC<{ onNavigate: (tab: TabType) => void, theme: 'light' | 
       exit={{ opacity: 0 }}
       className="flex flex-col"
     >
-      {/* Hero Section */}
       <section className="relative overflow-hidden bg-[#0F172A] py-20 px-4 lg:px-8 text-white">
         <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 opacity-10">
           <GraduationCap size={600} />
@@ -1319,7 +1273,6 @@ const HomeView: React.FC<{ onNavigate: (tab: TabType) => void, theme: 'light' | 
         </div>
       </section>
 
-      {/* Features Grid */}
       <section className="py-20 px-4 lg:px-8 max-w-7xl mx-auto w-full">
         <motion.div 
           initial="hidden"
@@ -1351,7 +1304,6 @@ const HomeView: React.FC<{ onNavigate: (tab: TabType) => void, theme: 'light' | 
         </motion.div>
       </section>
 
-      {/* Quick Access Systems */}
       <section id="system-selection" className={`py-20 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0B0F19] border-slate-900' : 'bg-white border-slate-200'}`}>
         <div className="max-w-7xl mx-auto w-full">
           <motion.div 
@@ -1453,7 +1405,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           : (theme === 'dark' ? 'border-slate-800 bg-[#131B2E] text-white' : 'border-slate-200 bg-white text-slate-900')
       }`}
     >
-      {/* Thumbnail */}
       <div 
         className="relative aspect-video overflow-hidden cursor-pointer"
         onClick={() => onOpenMedia('video')}
@@ -1467,7 +1418,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           referrerPolicy="no-referrer"
         />
         
-        {/* Overlay de Conclusão */}
         {isCompleted && (
           <div className="absolute inset-0 bg-emerald-600/20 flex items-center justify-center">
             <div className="bg-white rounded-full p-2 shadow-lg text-emerald-600">
@@ -1506,7 +1456,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
         </div>
       </div>
 
-      {/* Conteúdo */}
       <div className="flex flex-1 flex-col p-5">
         <div className="flex justify-between items-start gap-2 mb-2">
           <h3 className={`text-lg font-bold leading-tight transition-colors ${
@@ -1548,7 +1497,6 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           </div>
         </div>
 
-        {/* Ações */}
         <div className="mt-6 flex flex-col sm:flex-row gap-2">
           <button 
             onClick={() => onOpenMedia('video')}
@@ -1772,7 +1720,6 @@ const AdminView: React.FC<{
   const [bulkText, setBulkText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
-  // Generate beautiful analytical data from courses and users
   const getEngagementData = () => {
     const progressDataStr = localStorage.getItem('fapacademy_progress');
     const completedCourses: string[] = progressDataStr ? JSON.parse(progressDataStr) : [];
@@ -1780,7 +1727,6 @@ const AdminView: React.FC<{
     const completionsMap: Record<string, number> = {};
     
     courses.forEach((c, idx) => {
-      // Deterministically seed base completions based on course index / system
       const baseCount = (idx % 3 === 0 ? 12 : idx % 2 === 0 ? 8 : 4) + (c.system === '7Edu' ? 5 : 2);
       completionsMap[c.id] = baseCount;
     });
@@ -1793,7 +1739,6 @@ const AdminView: React.FC<{
       });
     }
 
-    // Sort and get top 5 most viewed lessons
     const popularLessonsData = courses
       .map(c => ({
         name: c.title.length > 25 ? c.title.substring(0, 25) + '...' : c.title,
@@ -1803,7 +1748,6 @@ const AdminView: React.FC<{
       .sort((a, b) => b.Conclusões - a.Conclusões)
       .slice(0, 5);
 
-    // Calculations for "Porcentagem de conclusão média" (Average completion rate)
     const userCompletions = users.map((u, idx) => {
       const isCurrentUser = u.email === 'mateusjhonata123@gmail.com' || u.id === '1';
       if (isCurrentUser) {
@@ -1816,7 +1760,6 @@ const AdminView: React.FC<{
       userCompletions.reduce((sum, val) => sum + val, 0) / Math.max(users.length, 1)
     );
 
-    // Completion distribution by ranges (0-20%, 21-50%, 51-80%, 81-100%)
     const distribution = [
       { name: '0-20%', value: userCompletions.filter(v => v <= 20).length },
       { name: '21-50%', value: userCompletions.filter(v => v > 20 && v <= 50).length },
@@ -1848,7 +1791,6 @@ const AdminView: React.FC<{
   const handleFileUpload = async (file: File, type: 'video' | 'pdf') => {
     setIsUploading(true);
     
-    // Atualiza o estado imediatamente com um texto informativo temporário
     if (type === 'video') {
       setNewCourse(prev => ({ ...prev, videoUrl: "Carregando mídia (Aguarde)..." }));
     } else {
@@ -1859,7 +1801,6 @@ const AdminView: React.FC<{
     let downloadURL = "";
     let uploadedToCloud = false;
 
-    // 1. Sempre salva localmente primeiro no IndexedDB para máxima redundância e agilidade local
     try {
       await saveLocalFile(localId, file);
       console.log("Arquivo armazenado em cache local do IndexedDB.");
@@ -1867,57 +1808,43 @@ const AdminView: React.FC<{
       console.warn("Erro ao registrar backup local no IndexedDB:", dbErr);
     }
 
-    // 2. Tenta fazer o upload para os provedores de nuvem configurados
     try {
-      const hasSupabase = isConfigured;
+      console.log("Iniciando upload direto para o Supabase Storage...");
+      const filePath = `courses/${type}s/${Date.now()}_${file.name}`;
       
-      if (hasSupabase) {
-        console.log("Iniciando upload para o Supabase Storage...");
-        const filePath = `courses/${type}s/${Date.now()}_${file.name}`;
-        const { error } = await supabase.storage
-          .from('videos-sistema')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
+      const { error } = await supabase.storage
+        .from('videos-sistema')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-        if (error) {
-          throw new Error(`Supabase Storage: ${error.message}`);
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('videos-sistema')
-          .getPublicUrl(filePath);
-          
-        downloadURL = publicUrl;
-        uploadedToCloud = true;
-      } else {
-        // Fallback automático para o Firebase Storage
-        console.log("Iniciando upload para o Firebase Storage...");
-        const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        downloadURL = await getDownloadURL(snapshot.ref);
-        uploadedToCloud = true;
+      if (error) {
+        throw new Error(`Supabase Storage: ${error.message}`);
       }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('videos-sistema')
+        .getPublicUrl(filePath);
+        
+      downloadURL = publicUrl;
+      uploadedToCloud = true;
     } catch (cloudError: any) {
-      console.warn("Upload de nuvem falhou, utilizando armazenamento do navegador:", cloudError);
-      // Se falhar o upload na nuvem, faz o fallback perfeito para o ID do IndexedDB local
+      console.warn("Upload no Supabase falhou, utilizando armazenamento do navegador:", cloudError);
       downloadURL = localId;
       uploadedToCloud = false;
     }
 
-    // 3. Define a URL de mídia correspondente
     if (type === 'video') {
       setNewCourse(prev => ({ ...prev, videoUrl: downloadURL }));
     } else {
       setNewCourse(prev => ({ ...prev, pdfUrl: downloadURL }));
     }
 
-    // 4. Exibe notificação de feedback amigável
     if (uploadedToCloud) {
-      alert(`${type.toUpperCase()} enviado com sucesso e disponibilizado online para todos!`);
+      alert(`${type.toUpperCase()} enviado fisicamente com sucesso para o Storage do Supabase!`);
     } else {
-      alert(`${type.toUpperCase()} salvo localmente no seu navegador para testes!`);
+      alert(`${type.toUpperCase()} salvo temporariamente no seu IndexedDB local.`);
     }
 
     setIsUploading(false);
@@ -1931,7 +1858,7 @@ const AdminView: React.FC<{
       } else {
         onAddUser({ id: Math.random().toString(36).substr(2, 9), ...newUser });
       }
-      setNewUser({ name: '', email: '', password: '', role: 'Usuário' });
+      setNewUser({ name: '', email: '', password: '', role: 'user' });
       setIsAdding(false);
       setEditingUser(null);
     }
@@ -1948,6 +1875,7 @@ const AdminView: React.FC<{
     if (trimmed.includes('vimeo.com')) return true;
     if (trimmed.includes('drive.google.com')) return true;
     if (trimmed.startsWith('blob:')) return true;
+    if (trimmed.startsWith('https://') && trimmed.includes('.supabase.')) return true;
     
     if (trimmed.endsWith('.mp4') || trimmed.endsWith('.webm') || trimmed.endsWith('.ogg') || trimmed.endsWith('.mov') || trimmed.endsWith('.m3u8')) return true;
     if (trimmed.includes('firebasestorage.googleapis.com')) return true;
@@ -1972,11 +1900,11 @@ const AdminView: React.FC<{
     }
     if (newCourse.videoUrl) {
       if (!isValidVideoUrl(newCourse.videoUrl)) {
-        alert("URL do vídeo inválida! A URL deve ser um link válido do SharePoint, OneDrive, YouTube, Vimeo, Google Drive ou arquivo MP4 direto.");
+        alert("URL do vídeo inválida! Forneça um link válido do SharePoint, YouTube, Drive ou MP4 direto.");
         return;
       }
     } else {
-      alert("Por favor, preencha a URL do vídeo.");
+      alert("Por favor, forneça ou faça o upload de um vídeo.");
       return;
     }
 
@@ -2029,8 +1957,8 @@ const AdminView: React.FC<{
           id: Math.random().toString(36).substr(2, 9),
           name,
           email,
-          password: password || '123', // Senha padrão se não fornecida
-          role: 'Usuário'
+          password: password || '123',
+          role: 'user'
         });
       }
     });
@@ -2074,7 +2002,7 @@ const AdminView: React.FC<{
             </>
           ) : (
             <button 
-              onClick={() => { setIsAdding(true); setEditingCourse(null); setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '' }); }}
+              onClick={() => { setIsAdding(true); setEditingCourse(null); setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' }); }}
               className="flex items-center justify-center gap-2 bg-[#3B82F6] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#2563EB] transition-colors shadow-lg shadow-blue-200"
             >
               <Plus size={20} /> Nova Aula
@@ -2083,7 +2011,6 @@ const AdminView: React.FC<{
         </div>
       </div>
 
-      {/* Admin Tabs */}
       <div className={`flex flex-wrap gap-2 mb-8 p-1 rounded-2xl w-fit transition-colors duration-300 ${
         theme === 'dark' ? 'bg-slate-900 border border-slate-800' : 'bg-slate-100'
       }`}>
@@ -2119,7 +2046,6 @@ const AdminView: React.FC<{
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[
           { label: 'Total de Usuários', value: users.length, icon: <Users className="text-blue-600" />, bg: 'bg-blue-50' },
@@ -2267,7 +2193,6 @@ const AdminView: React.FC<{
 
       {adminTab === 'engagement' && (
         <div className="space-y-8">
-          {/* Analytics Overview Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Conclusões</p>
@@ -2302,9 +2227,7 @@ const AdminView: React.FC<{
             </div>
           </div>
 
-          {/* Bento-grid Charts container */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Chart 1: Bar Chart "Aulas mais assistidas" */}
             <div className={`lg:col-span-2 p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800 pt-8' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Aulas Mais Assistidas (Top 5)</h3>
@@ -2334,7 +2257,6 @@ const AdminView: React.FC<{
               </div>
             </div>
 
-            {/* Chart 2: Donut Chart "Visualizações por Sistema" */}
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Estudo por Área</h3>
@@ -2369,9 +2291,7 @@ const AdminView: React.FC<{
             </div>
           </div>
 
-          {/* Distribution chart and Stats Table */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Chart 3: Area/Line Chart of Completion Distribution */}
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Distribuição de Conclusão</h3>
@@ -2401,7 +2321,6 @@ const AdminView: React.FC<{
               </div>
             </div>
 
-            {/* Engagement list summary table */}
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Performance de Alunos</h3>
@@ -2438,6 +2357,7 @@ const AdminView: React.FC<{
           </div>
         </div>
       )}
+
       <AnimatePresence>
         {isAdding && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -2551,7 +2471,7 @@ const AdminView: React.FC<{
                             value={newCourse.videoUrl} 
                             onChange={(e) => setNewCourse({...newCourse, videoUrl: e.target.value})} 
                             className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm" 
-                            placeholder="Link do YouTube, Drive, etc." 
+                            placeholder="Link do YouTube, Drive, Supabase URL..." 
                           />
                           <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl flex items-center gap-2 border border-slate-200 transition-colors whitespace-nowrap text-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                             {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
@@ -2569,7 +2489,7 @@ const AdminView: React.FC<{
                           </label>
                         </div>
                         <p className="text-[10px] text-slate-500 bg-blue-50 p-2 rounded-lg leading-tight">
-                          <strong>Dica:</strong> Links permanentes (YouTube/Drive) são melhores. Arquivos subidos via "Subir Arquivo" serão salvos no Firebase Storage.
+                          <strong>Aviso:</strong> Arquivos carregados fisicamente pelo botão "Subir Arquivo" serão importados diretamente para o local correto na nuvem do seu <strong>Supabase Storage</strong>.
                         </p>
                       </div>
                     </div>
@@ -2628,10 +2548,9 @@ const MediaModal: React.FC<{
   onClose: () => void,
   onPrev?: () => void,
   onNext?: () => void,
-  onTypeChange?: (type: 'video' | 'pdf') => void,
   isCompleted?: boolean,
   onToggleComplete?: (id: string) => void
-}> = ({ isOpen, type, course, courses = [], onSelectCourse, onClose, onPrev, onNext, onTypeChange, isCompleted, onToggleComplete }) => {
+}> = ({ isOpen, type, course, courses = [], onSelectCourse, onClose, onPrev, onNext, isCompleted, onToggleComplete }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchRef = React.useRef<HTMLDivElement>(null);
@@ -2644,7 +2563,6 @@ const MediaModal: React.FC<{
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [isPipActive, setIsPipActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [videoState, setVideoState] = useState<'loading' | 'playing' | 'paused' | 'error'>('loading');
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
@@ -2664,7 +2582,6 @@ const MediaModal: React.FC<{
     let localPdfUrlBlob = '';
 
     const resolveLocalResources = async () => {
-      // Resolve Video
       if (course.videoUrl) {
         if (course.videoUrl.startsWith('local-file-')) {
           try {
@@ -2686,7 +2603,6 @@ const MediaModal: React.FC<{
         setResolvedVideoUrl('');
       }
 
-      // Resolve PDF
       if (course.pdfUrl) {
         if (course.pdfUrl.startsWith('local-file-')) {
           try {
@@ -2748,7 +2664,6 @@ const MediaModal: React.FC<{
     };
   }, []);
 
-  // Expose tab setter and video controls to window for AI Assistant automation
   useEffect(() => {
     if (isOpen) {
       (window as any).__mediaModalSetTab = setCurrentTab;
@@ -2790,7 +2705,6 @@ const MediaModal: React.FC<{
       }
       setDiagnosticLogs(logs);
 
-      // Auto play for direct videos after simple timeout
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.play().then(() => {
@@ -2807,15 +2721,13 @@ const MediaModal: React.FC<{
 
   if (!course) return null;
 
-  const isVideoBlob = course.videoUrl?.startsWith('blob:');
-  const isPdfBlob = course.pdfUrl?.startsWith('blob:');
-
   const isDirectVideo = (url: string) => {
     return url.startsWith('blob:') || 
            url.includes('.mp4') || 
            url.includes('.webm') || 
            url.includes('.ogg') || 
            url.includes('vercel.app') || 
+           url.includes('.supabase.') ||
            url.includes('firebasestorage.googleapis.com');
   };
 
@@ -2835,7 +2747,6 @@ const MediaModal: React.FC<{
     if (!url) return '';
     let parsedUrl = url.trim();
 
-    // 1. YouTube
     if (parsedUrl.includes('youtube.com') || parsedUrl.includes('youtu.be')) {
       if (parsedUrl.includes('watch?v=')) {
         parsedUrl = parsedUrl.replace('watch?v=', 'embed/');
@@ -2847,7 +2758,6 @@ const MediaModal: React.FC<{
       return parsedUrl;
     }
 
-    // 1.1 Vimeo
     if (parsedUrl.includes('vimeo.com')) {
       const vimeoIdMatch = parsedUrl.match(/vimeo\.com\/(\d+)/);
       if (vimeoIdMatch) {
@@ -2856,7 +2766,6 @@ const MediaModal: React.FC<{
       return parsedUrl;
     }
 
-    // 2. Google Drive
     if (parsedUrl.includes('drive.google.com')) {
       if (parsedUrl.includes('/view')) {
         parsedUrl = parsedUrl.split('/view')[0] + '/preview';
@@ -2870,7 +2779,6 @@ const MediaModal: React.FC<{
       return parsedUrl;
     }
 
-    // 3. SharePoint and OneDrive
     if (parsedUrl.includes('sharepoint.com')) {
       if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
       const sharepointMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
@@ -2933,14 +2841,14 @@ const MediaModal: React.FC<{
 
     if (parsedUrl.includes('sharepoint.com')) {
       const sharepointMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:f:\/s\/([^\/]+)\/([^\/?]+)/) || 
-                              parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
+                            parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
       if (sharepointMatch) {
         const [_, domain, site, id] = sharepointMatch;
         return `${domain}/sites/${site}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
       }
 
       const personalMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:f:\/g\/personal\/([^\/]+)\/([^\/?]+)/) ||
-                            parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/g\/personal\/([^\/]+)\/([^\/?]+)/);
+                          parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/g\/personal\/([^\/]+)\/([^\/?]+)/);
       if (personalMatch) {
         const [_, domain, user, id] = personalMatch;
         return `${domain}/personal/${user}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
@@ -3030,7 +2938,7 @@ const MediaModal: React.FC<{
       videoRef.current.currentTime += offset;
       addLog(`Pulou ${offset > 0 ? '+' : ''}${offset} segundos.`);
     } else {
-      addLog("Buscar por tempo (Seek/Skip) só funciona para arquivos diretos (MP4).");
+      addLog("Buscar por tempo (Seek/Skip) só funciona para arquivos diretos (MP4/Supabase).");
     }
   };
 
@@ -3062,22 +2970,6 @@ const MediaModal: React.FC<{
     }
   };
 
-  const togglePictureInPicture = async () => {
-    if (videoRef.current) {
-      try {
-        if (document.pictureInPictureElement) {
-          await document.exitPictureInPicture();
-          setIsPipActive(false);
-        } else if (document.pictureInPictureEnabled) {
-          await videoRef.current.requestPictureInPicture();
-          setIsPipActive(true);
-        }
-      } catch (err: any) {
-        addLog(`Picture-in-Picture: ${err.message}`);
-      }
-    }
-  };
-
   const toggleFullscreen = () => {
     if (containerRef.current) {
       if (!document.fullscreenElement) {
@@ -3104,7 +2996,6 @@ const MediaModal: React.FC<{
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl my-auto overflow-hidden flex flex-col h-auto max-h-[98vh] border border-slate-100"
           >
-            {/* Header Modal */}
             <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center bg-white">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
@@ -3122,7 +3013,6 @@ const MediaModal: React.FC<{
                 </div>
               </div>
 
-              {/* Dynamic search bar inside the MediaModal */}
               {courses && courses.length > 0 && (
                 <div className="relative flex-1 max-w-md mx-0 md:mx-6" ref={searchRef}>
                   <div className="relative">
@@ -3136,7 +3026,7 @@ const MediaModal: React.FC<{
                         setIsSearchFocused(true);
                       }}
                       onFocus={() => setIsSearchFocused(true)}
-                      className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-404 focus:ring-2 focus:ring-blue-100"
                     />
                     {searchQuery && (
                       <button
@@ -3148,7 +3038,6 @@ const MediaModal: React.FC<{
                     )}
                   </div>
 
-                  {/* Dropdown containing all matching courses */}
                   <AnimatePresence>
                     {isSearchFocused && (
                       <motion.div
@@ -3165,7 +3054,7 @@ const MediaModal: React.FC<{
                           );
 
                           if (matches.length === 0) {
-                            return <p className="text-[11px] text-slate-400 py-3 text-center font-medium">Nenhuma aula encontrada</p>;
+                            return <p className="text-[11px] text-slate-404 py-3 text-center font-medium">Nenhuma aula encontrada</p>;
                           }
 
                           return (
@@ -3213,7 +3102,6 @@ const MediaModal: React.FC<{
               </button>
             </div>
 
-            {/* Selector de Abas se ambos existirem */}
             {videoSrc && pdfSrc && (
               <div className="flex border-b border-slate-100 bg-slate-50/50 p-1.5 gap-2">
                 <button
@@ -3244,7 +3132,7 @@ const MediaModal: React.FC<{
             <div className="flex-1 overflow-y-auto max-h-[70vh] bg-slate-50">
               {!videoSrc && !pdfSrc ? (
                 <div className="flex flex-col items-center justify-center p-12 sm:p-20 text-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-404 mb-4">
                     <GraduationCap size={32} />
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 mb-1">Conteúdo em construção</h3>
@@ -3252,10 +3140,8 @@ const MediaModal: React.FC<{
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  {/* Vídeo Aula - Visível apenas quando tab === 'video' */}
                   {videoSrc && currentTab === 'video' && (
                     <div className="bg-slate-950 p-2 sm:p-4">
-                      {/* Responsive video container */}
                       <div 
                         ref={containerRef}
                         className={`group relative flex items-center justify-center bg-black overflow-hidden mx-auto transition-all ${
@@ -3264,7 +3150,6 @@ const MediaModal: React.FC<{
                             : 'w-full max-w-4xl aspect-video rounded-2xl shadow-2xl border border-slate-800'
                         }`}
                       >
-                        {/* Loading Ring overlay */}
                         {videoState === 'loading' && (
                           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-30">
                             <Loader2 className="animate-spin text-blue-500" size={36} />
@@ -3272,7 +3157,6 @@ const MediaModal: React.FC<{
                           </div>
                         )}
 
-                        {/* Status Label on Screen */}
                         <div className="absolute top-4 right-4 z-20 flex gap-2 pointer-events-none mb-1 shadow-lg shadow-black/10">
                           <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full text-white flex items-center gap-1.5 backdrop-blur-md ${
                             videoState === 'loading' ? 'bg-amber-600/80' :
@@ -3288,7 +3172,6 @@ const MediaModal: React.FC<{
                           </span>
                         </div>
 
-                        {/* Warning overlay for SharePoint and OneDrive */}
                         {videoSrc && (videoSrc.includes('sharepoint.com') || videoSrc.includes('onedrive.live.com') || videoSrc.includes('drive.google.com')) && (
                           <div className="absolute top-4 left-4 right-4 z-10 bg-slate-900/95 border border-amber-500/30 text-white p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs backdrop-blur-md shadow-xl transition-opacity hover:opacity-100 opacity-95 text-left max-w-[95%]">
                             <div className="flex items-center gap-2">
@@ -3332,7 +3215,6 @@ const MediaModal: React.FC<{
                               onError={() => { setVideoState('error'); addLog("Erro crítico de renderização de vídeo direto."); }}
                             />
                             
-                            {/* Central Pause Overlay Indicator */}
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                               <AnimatePresence>
                                 {!isPlaying && (
@@ -3348,9 +3230,7 @@ const MediaModal: React.FC<{
                               </AnimatePresence>
                             </div>
 
-                            {/* Custom Controls Overlay for direct video */}
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-2 text-left">
-                              {/* Progress bar timeline */}
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(currentTime)}</span>
                                 <div className="flex-1 relative h-1 bg-white/20 rounded-full cursor-pointer group/bar">
@@ -3375,7 +3255,6 @@ const MediaModal: React.FC<{
                                 <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(duration)}</span>
                               </div>
 
-                              {/* Controls row */}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <button 
@@ -3385,7 +3264,6 @@ const MediaModal: React.FC<{
                                     {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
                                   </button>
 
-                                  {/* Volume slider control */}
                                   <div className="flex items-center gap-1 group/vol">
                                     <button onClick={handleMuteToggle} className="text-white/80 hover:text-white p-1">
                                       {isMuted ? <VolumeX size={14} /> : volume < 0.5 ? <Volume1 size={14} /> : <Volume2 size={14} />}
@@ -3401,7 +3279,6 @@ const MediaModal: React.FC<{
                                     />
                                   </div>
 
-                                  {/* Speed setting */}
                                   <div className="flex gap-1.5">
                                     {[1, 1.5, 2].map(rate => (
                                       <button 
@@ -3416,9 +3293,6 @@ const MediaModal: React.FC<{
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                  <button onClick={togglePictureInPicture} className="text-white/80 hover:text-white p-1" title="Picture-in-Picture">
-                                    <ExternalLink size={14} />
-                                  </button>
                                   <button onClick={toggleFullscreen} className="text-white/80 hover:text-white p-1" title="Tela Cheia">
                                     <Maximize size={14} />
                                   </button>
@@ -3428,7 +3302,6 @@ const MediaModal: React.FC<{
                           </>
                         ) : (
                           <div className="w-full h-full relative">
-                            {/* Iframe wrapper for general, YouTube, vimeo, sharepoint links */}
                             <iframe 
                               src={videoSrc || undefined} 
                               className="w-full h-full border-0 aspect-video rounded-2xl"
@@ -3448,9 +3321,7 @@ const MediaModal: React.FC<{
                         )}
                       </div>
                       
-                      {/* Integrated Action & Navigation Bar below player */}
                       <div className="max-w-4xl mx-auto mt-3 bg-slate-900 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-white border border-slate-800">
-                        {/* 10s Rewind / Fast Forward */}
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleSeek(-10)}
@@ -3481,7 +3352,6 @@ const MediaModal: React.FC<{
                           </button>
                         </div>
 
-                        {/* Navigation: Prev / Next */}
                         <div className="flex items-center gap-2">
                           <button
                             onClick={onPrev}
@@ -3510,9 +3380,7 @@ const MediaModal: React.FC<{
                           </button>
                         </div>
 
-                        {/* External Actions & Diagnostic toggles */}
                         <div className="flex items-center gap-2">
-
                           {course.videoUrl && (
                             <a 
                               href={course.videoUrl} 
@@ -3537,7 +3405,6 @@ const MediaModal: React.FC<{
                     </div>
                   )}
 
-                  {/* Diagnostic logs output console */}
                   {showLogs && (
                     <div className="mx-4 sm:mx-8 mt-3 bg-slate-900 border border-slate-800 rounded-xl p-4 font-mono text-[11px] text-emerald-400 max-h-36 overflow-y-auto text-left">
                       <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
@@ -3560,7 +3427,6 @@ const MediaModal: React.FC<{
                     </div>
                   )}
 
-                  {/* Material de Apoio (PDF) - Visível apenas quando tab === 'pdf' */}
                   {pdfSrc && currentTab === 'pdf' && (
                     <div className="p-4 sm:p-8 bg-slate-100">
                       <div className="max-w-4xl mx-auto">
@@ -3596,11 +3462,10 @@ const MediaModal: React.FC<{
                     </div>
                   )}
 
-                  {/* Informações detalhadas da aula */}
                   <div className="p-4 sm:p-6 md:p-8 bg-white grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
                     <div className="lg:col-span-2 space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] sm:text-xs font-black rounded-lg ${course.system === '7Edu' ? 'bg-blue-550/10 text-blue-600' : 'bg-indigo-550/10 text-indigo-600'}`}>
+                        <span className={`px-2 py-0.5 text-[10px] sm:text-xs font-black rounded-lg ${course.system === '7Edu' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {course.system}
                         </span>
                         <span className="text-slate-300">•</span>
@@ -3622,7 +3487,6 @@ const MediaModal: React.FC<{
                       </p>
                     </div>
 
-                    {/* Progress Toggle Card */}
                     <div className="bg-slate-50 border border-slate-250/20 p-4 rounded-2xl flex flex-col justify-between gap-4">
                       <div className="space-y-3">
                         <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Seu Progresso</h4>
@@ -3648,7 +3512,6 @@ const MediaModal: React.FC<{
                           </button>
                         </div>
 
-                        {/* Botão de Marcar Conclusão */}
                         <button
                           onClick={() => onToggleComplete?.(course.id)}
                           className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
@@ -3679,7 +3542,6 @@ const MediaModal: React.FC<{
                         </div>
                       </div>
 
-                      {/* Botões Separados para Download do Vídeo e do Passo a Passo (PDF) */}
                       <div className="space-y-2 pt-3 border-t border-slate-200/60 text-left">
                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Downloads Disponíveis</span>
                         
