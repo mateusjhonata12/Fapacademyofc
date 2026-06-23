@@ -86,7 +86,7 @@ import {
   where
 } from 'firebase/firestore';
 import { saveLocalFile, getLocalFile } from './lib/indexedDB';
-import { supabase } from './lib/supabase';
+import supabase from '../../lib/supabase';
 
 const downloadFile = async (url: string, filename: string) => {
   if (!url) return;
@@ -872,7 +872,7 @@ export default function App() {
               theme === 'dark' ? 'border-slate-800 bg-[#0F172A] text-white' : 'border-slate-200 bg-white text-slate-900'
             }`}>
               <button 
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                onClick={() => { setIsSidebarOpen(!isSidebarOpen); }}
                 className={`rounded-md p-2 transition-colors ${
                   theme === 'dark' ? 'hover:bg-slate-800 text-white' : 'hover:bg-slate-100'
                 }`}
@@ -1431,7 +1431,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
             onClick={() => onOpenMedia('video')}
             className="h-12 w-12 rounded-full bg-white/90 flex items-center justify-center text-[#3B82F6] shadow-lg hover:scale-110 transition-transform"
           >
-            <Play size={24} fill="currentColor" />
+            <Play size={24} fill="currentColor" className="ml-0.5" />
           </button>
         </div>
         
@@ -3081,7 +3081,7 @@ const MediaModal: React.FC<{
                                     </span>
                                     <span className="text-[11px] font-bold truncate leading-tight">{c.title}</span>
                                   </div>
-                                  <span className="text-[9px] text-slate-400 shrink-0 font-mono italic">{c.duration}</span>
+                                  <span className="text-[9px] text-slate-404 shrink-0 font-mono italic">{c.duration}</span>
                                 </button>
                               ))}
                             </div>
@@ -3526,14 +3526,14 @@ const MediaModal: React.FC<{
 
                         <div className="grid grid-cols-2 gap-2">
                           <div className="p-2.5 bg-white border border-slate-100 rounded-lg text-left">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase block">Duração</span>
+                            <span className="text-[9px] text-slate-404 font-bold uppercase block">Duração</span>
                             <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1 mt-0.5">
                               <Clock size={12} className="text-[#3B82F6]" />
                               {course.duration}
                             </span>
                           </div>
                           <div className="p-2.5 bg-white border border-slate-100 rounded-lg text-left">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase block">Nível</span>
+                            <span className="text-[9px] text-slate-404 font-bold uppercase block">Nível</span>
                             <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1 mt-0.5">
                               <BarChart size={12} className="text-[#3B82F6]" />
                               {course.difficulty}
