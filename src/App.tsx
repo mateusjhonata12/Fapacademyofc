@@ -47,7 +47,8 @@ import {
   VolumeX,
   Volume1,
   Volume2,
-  FileCode
+  FileCode,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
@@ -1061,7 +1062,7 @@ export default function App() {
                         return updated;
                       });
                     } else {
-                      await updateDoc(doc(db, 'courses', id), data as any);
+                      await setDoc(doc(db, 'courses', id), data, { merge: true });
                     }
                   } catch (e) {
                     console.error("Erro ao atualizar curso no Firestore, modificando localmente:", e);
@@ -1915,9 +1916,9 @@ const AdminView: React.FC<{
 
     // 4. Exibe notificação de feedback amigável
     if (uploadedToCloud) {
-      alert(`${type.toUpperCase()} enviado com sucesso e disponibilizado online para todos!`);
+      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} enviado com sucesso para a nuvem! O link público foi salvo no banco de dados para acesso de todos os alunos.`);
     } else {
-      alert(`${type.toUpperCase()} salvo localmente no seu navegador para testes!`);
+      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} salvo temporariamente no navegador.\n\nDica: Como o upload direto falhou, cole diretamente o link do seu vídeo ou PDF hospedado externamente (no YouTube, Google Drive, Vimeo, Supabase, Dropbox, etc) para que todos os alunos consigam acessar de qualquer lugar!`);
     }
 
     setIsUploading(false);
@@ -1939,21 +1940,22 @@ const AdminView: React.FC<{
 
   const isValidVideoUrl = (urlStr: string) => {
     if (!urlStr) return false;
-    const trimmed = urlStr.trim().toLowerCase();
-    
-    if (trimmed.startsWith('local-file-')) return true;
-    if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) return true;
-    if (trimmed.includes('sharepoint.com')) return true;
-    if (trimmed.includes('onedrive.live.com') || trimmed.includes('1drv.ms')) return true;
-    if (trimmed.includes('vimeo.com')) return true;
-    if (trimmed.includes('drive.google.com')) return true;
-    if (trimmed.startsWith('blob:')) return true;
-    
-    if (trimmed.endsWith('.mp4') || trimmed.endsWith('.webm') || trimmed.endsWith('.ogg') || trimmed.endsWith('.mov') || trimmed.endsWith('.m3u8')) return true;
-    if (trimmed.includes('firebasestorage.googleapis.com')) return true;
-    
+    const trimmed = urlStr.trim();
+    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:')) return true;
     try {
-      const parsed = new URL(urlStr);
+      const parsed = new URL(trimmed);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const isValidPdfUrl = (urlStr: string) => {
+    if (!urlStr) return true;
+    const trimmed = urlStr.trim();
+    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:')) return true;
+    try {
+      const parsed = new URL(trimmed);
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch (_) {
       return false;
@@ -1972,11 +1974,16 @@ const AdminView: React.FC<{
     }
     if (newCourse.videoUrl) {
       if (!isValidVideoUrl(newCourse.videoUrl)) {
-        alert("URL do vídeo inválida! A URL deve ser um link válido do SharePoint, OneDrive, YouTube, Vimeo, Google Drive ou arquivo MP4 direto.");
+        alert("URL do vídeo inválida! Forneça um link HTTP/HTTPS válido do YouTube, Google Drive, Vimeo, Loom, Supabase, Firebase ou MP4 direto.");
         return;
       }
     } else {
       alert("Por favor, preencha a URL do vídeo.");
+      return;
+    }
+
+    if (newCourse.pdfUrl && !isValidPdfUrl(newCourse.pdfUrl)) {
+      alert("URL do PDF inválida! Forneça um link HTTP/HTTPS válido para o material de apoio.");
       return;
     }
 
@@ -2543,15 +2550,20 @@ const AdminView: React.FC<{
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Vídeo da Aula</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-bold text-slate-700">Vídeo da Aula (URL do Vídeo Hospedado Fora)</label>
+                        <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                          Hospedagem Externa Habilitada
+                        </span>
+                      </div>
                       <div className="flex flex-col gap-3">
                         <div className="flex gap-2">
                           <input 
                             type="text" 
                             value={newCourse.videoUrl} 
                             onChange={(e) => setNewCourse({...newCourse, videoUrl: e.target.value})} 
-                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm" 
-                            placeholder="Link do YouTube, Drive, etc." 
+                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono text-slate-800" 
+                            placeholder="Ex: https://www.youtube.com/watch?v=... ou https://drive.google.com/file/d/..." 
                           />
                           <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl flex items-center gap-2 border border-slate-200 transition-colors whitespace-nowrap text-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                             {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
@@ -2568,21 +2580,36 @@ const AdminView: React.FC<{
                             />
                           </label>
                         </div>
-                        <p className="text-[10px] text-slate-500 bg-blue-50 p-2 rounded-lg leading-tight">
-                          <strong>Dica:</strong> Links permanentes (YouTube/Drive) são melhores. Arquivos subidos via "Subir Arquivo" serão salvos no Firebase Storage.
-                        </p>
+                        <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+                          <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <Globe size={13} className="text-blue-600" />
+                            Provedores de Vídeo Externos Aceitos pelo Sistema:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {['YouTube', 'Google Drive', 'Vimeo', 'Loom', 'Supabase Storage', 'Firebase Storage', 'Dropbox', 'SharePoint', 'OneDrive', 'Link Direto MP4'].map((platform) => (
+                              <span key={platform} className="bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">
+                                ✓ {platform}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-slate-500">
+                            Cole o link do seu vídeo hospedado na nuvem. Ele é salvo no banco de dados do sistema e disponibilizado para todos os usuários fora do AI Studio!
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Material de Apoio (PDF)</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-bold text-slate-700">Material de Apoio (PDF / Documento)</label>
+                      </div>
                       <div className="flex flex-col gap-3">
                         <div className="flex gap-2">
                           <input 
                             type="text" 
                             value={newCourse.pdfUrl} 
                             onChange={(e) => setNewCourse({...newCourse, pdfUrl: e.target.value})} 
-                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm" 
-                            placeholder="Link do PDF ou documento" 
+                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono text-slate-800" 
+                            placeholder="Ex: https://drive.google.com/file/d/... ou link direto do PDF" 
                           />
                           <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl flex items-center gap-2 border border-slate-200 transition-colors whitespace-nowrap text-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                             {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
@@ -2599,6 +2626,9 @@ const AdminView: React.FC<{
                             />
                           </label>
                         </div>
+                        <p className="text-[10px] text-slate-500 bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl leading-tight">
+                          💡 <strong>PDFs de fora:</strong> Aceita links do Google Drive, Dropbox, Supabase Storage, OneDrive, SharePoint ou qualquer URL HTTPS direta de PDF.
+                        </p>
                       </div>
                     </div>
                     <button 
@@ -2811,31 +2841,53 @@ const MediaModal: React.FC<{
   const isPdfBlob = course.pdfUrl?.startsWith('blob:');
 
   const isDirectVideo = (url: string) => {
-    return url.startsWith('blob:') || 
-           url.includes('.mp4') || 
-           url.includes('.webm') || 
-           url.includes('.ogg') || 
-           url.includes('vercel.app') || 
-           url.includes('firebasestorage.googleapis.com');
+    if (!url) return false;
+    const lower = url.trim().toLowerCase();
+    
+    // Services that require iframe embed
+    if (
+      lower.includes('youtube.com') || lower.includes('youtu.be') ||
+      lower.includes('vimeo.com') || lower.includes('loom.com') ||
+      lower.includes('drive.google.com') || lower.includes('sharepoint.com') ||
+      lower.includes('onedrive.live.com') || lower.includes('dailymotion.com')
+    ) {
+      return false;
+    }
+
+    return (
+      lower.startsWith('blob:') ||
+      lower.includes('.mp4') ||
+      lower.includes('.webm') ||
+      lower.includes('.ogg') ||
+      lower.includes('.mov') ||
+      lower.includes('.m3u8') ||
+      lower.includes('supabase.co') ||
+      lower.includes('firebasestorage.googleapis.com') ||
+      lower.includes('dropbox.com') ||
+      lower.includes('raw=1')
+    );
   };
 
   const getUrlType = (url: string) => {
     if (!url) return 'Vazia';
     const parsed = url.toLowerCase();
     if (parsed.includes('youtube.com') || parsed.includes('youtu.be')) return 'YouTube';
-    if (parsed.includes('vimeo.com')) return 'Vimeo (Player)';
+    if (parsed.includes('vimeo.com')) return 'Vimeo';
+    if (parsed.includes('loom.com')) return 'Loom';
     if (parsed.includes('sharepoint.com')) return 'SharePoint';
     if (parsed.includes('onedrive.live.com')) return 'OneDrive';
     if (parsed.includes('drive.google.com')) return 'Google Drive';
-    if (parsed.startsWith('blob:') || isDirectVideo(url)) return 'Link Direto / MP4 (HTML5)';
-    return 'URL de Internet Geral';
+    if (parsed.includes('supabase.co')) return 'Supabase Storage';
+    if (parsed.includes('firebasestorage.googleapis.com')) return 'Firebase Storage';
+    if (parsed.startsWith('blob:') || isDirectVideo(url)) return 'Vídeo Direto / MP4 (HTML5)';
+    return 'Servidor de Mídia Externo';
   };
 
   const getEmbedUrl = (url: string) => {
     if (!url) return '';
     let parsedUrl = url.trim();
 
-    // 1. YouTube
+    // 1. YouTube (watch, shorts, live, shortlink)
     if (parsedUrl.includes('youtube.com') || parsedUrl.includes('youtu.be')) {
       if (parsedUrl.includes('watch?v=')) {
         parsedUrl = parsedUrl.replace('watch?v=', 'embed/');
@@ -2843,34 +2895,61 @@ const MediaModal: React.FC<{
         parsedUrl = parsedUrl.replace('youtu.be/', 'youtube.com/embed/');
       } else if (parsedUrl.includes('/shorts/')) {
         parsedUrl = parsedUrl.replace('/shorts/', '/embed/');
+      } else if (parsedUrl.includes('/live/')) {
+        parsedUrl = parsedUrl.replace('/live/', '/embed/');
       }
       return parsedUrl;
     }
 
-    // 1.1 Vimeo
+    // 2. Vimeo
     if (parsedUrl.includes('vimeo.com')) {
-      const vimeoIdMatch = parsedUrl.match(/vimeo\.com\/(\d+)/);
-      if (vimeoIdMatch) {
-         return `https://player.vimeo.com/video/${vimeoIdMatch[1]}?autoplay=1`;
+      const match = parsedUrl.match(/vimeo\.com\/(\d+)/);
+      if (match && match[1]) {
+        return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
       }
       return parsedUrl;
     }
 
-    // 2. Google Drive
+    // 3. Loom
+    if (parsedUrl.includes('loom.com')) {
+      if (parsedUrl.includes('/share/')) {
+        return parsedUrl.replace('/share/', '/embed/');
+      }
+      return parsedUrl;
+    }
+
+    // 4. Google Drive Video
     if (parsedUrl.includes('drive.google.com')) {
       if (parsedUrl.includes('/view')) {
-        parsedUrl = parsedUrl.split('/view')[0] + '/preview';
-      } else if (!parsedUrl.endsWith('/preview') && parsedUrl.includes('/file/d/')) {
+        return parsedUrl.split('/view')[0] + '/preview';
+      }
+      if (parsedUrl.includes('/open?id=')) {
+        const id = parsedUrl.split('/open?id=')[1]?.split('&')[0];
+        if (id) return `https://drive.google.com/file/d/${id}/preview`;
+      }
+      if (parsedUrl.includes('/uc?id=')) {
+        const id = parsedUrl.split('/uc?id=')[1]?.split('&')[0];
+        if (id) return `https://drive.google.com/file/d/${id}/preview`;
+      }
+      if (!parsedUrl.endsWith('/preview') && parsedUrl.includes('/file/d/')) {
         const parts = parsedUrl.split('/file/d/');
         if (parts[1]) {
           const id = parts[1].split('/')[0];
-          parsedUrl = `https://drive.google.com/file/d/${id}/preview`;
+          return `https://drive.google.com/file/d/${id}/preview`;
         }
       }
       return parsedUrl;
     }
 
-    // 3. SharePoint and OneDrive
+    // 5. Dropbox
+    if (parsedUrl.includes('dropbox.com')) {
+      if (parsedUrl.includes('dl=0')) {
+        return parsedUrl.replace('dl=0', 'raw=1');
+      }
+      return parsedUrl;
+    }
+
+    // 6. SharePoint and OneDrive
     if (parsedUrl.includes('sharepoint.com')) {
       if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
       const sharepointMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
@@ -2878,13 +2957,11 @@ const MediaModal: React.FC<{
         const [_, domain, site, id] = sharepointMatch;
         return `${domain}/sites/${site}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
       }
-      
       const personalMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/g\/personal\/([^\/]+)\/([^\/?]+)/);
       if (personalMatch) {
         const [_, domain, user, id] = personalMatch;
         return `${domain}/personal/${user}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
       }
-
       try {
         const urlObj = new URL(parsedUrl);
         urlObj.searchParams.set('action', 'embedview');
@@ -2918,57 +2995,31 @@ const MediaModal: React.FC<{
     if (!url) return '';
     let parsedUrl = url.trim();
 
+    // 1. Google Drive PDF
     if (parsedUrl.includes('drive.google.com')) {
       if (parsedUrl.includes('/view')) {
-        parsedUrl = parsedUrl.split('/view')[0] + '/preview';
-      } else if (!parsedUrl.endsWith('/preview') && parsedUrl.includes('/file/d/')) {
+        return parsedUrl.split('/view')[0] + '/preview';
+      }
+      if (parsedUrl.includes('/open?id=')) {
+        const id = parsedUrl.split('/open?id=')[1]?.split('&')[0];
+        if (id) return `https://drive.google.com/file/d/${id}/preview`;
+      }
+      if (!parsedUrl.endsWith('/preview') && parsedUrl.includes('/file/d/')) {
         const parts = parsedUrl.split('/file/d/');
         if (parts[1]) {
           const id = parts[1].split('/')[0];
-          parsedUrl = `https://drive.google.com/file/d/${id}/preview`;
+          return `https://drive.google.com/file/d/${id}/preview`;
         }
       }
       return parsedUrl;
     }
 
-    if (parsedUrl.includes('sharepoint.com')) {
-      const sharepointMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:f:\/s\/([^\/]+)\/([^\/?]+)/) || 
-                              parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
-      if (sharepointMatch) {
-        const [_, domain, site, id] = sharepointMatch;
-        return `${domain}/sites/${site}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
+    // 2. SharePoint and OneDrive
+    if (parsedUrl.includes('sharepoint.com') || parsedUrl.includes('onedrive.live.com')) {
+      if (!parsedUrl.includes('action=embedview')) {
+        parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
       }
-
-      const personalMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:f:\/g\/personal\/([^\/]+)\/([^\/?]+)/) ||
-                            parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/g\/personal\/([^\/]+)\/([^\/?]+)/);
-      if (personalMatch) {
-        const [_, domain, user, id] = personalMatch;
-        return `${domain}/personal/${user}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
-      }
-
-      try {
-        const urlObj = new URL(parsedUrl);
-        urlObj.searchParams.set('action', 'embedview');
-        return urlObj.toString();
-      } catch (e) {
-        if (!parsedUrl.includes('action=embedview')) {
-          parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
-        }
-        return parsedUrl;
-      }
-    }
-
-    if (parsedUrl.includes('onedrive.live.com')) {
-      try {
-        const urlObj = new URL(parsedUrl);
-        urlObj.searchParams.set('action', 'embedview');
-        return urlObj.toString();
-      } catch (e) {
-        if (!parsedUrl.includes('action=embedview')) {
-          parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
-        }
-        return parsedUrl;
-      }
+      return parsedUrl;
     }
 
     return parsedUrl;
