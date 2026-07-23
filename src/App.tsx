@@ -1943,10 +1943,26 @@ const AdminView: React.FC<{
         uploadedToCloud = true;
       }
     } catch (cloudError: any) {
-      console.warn("Upload de nuvem falhou, utilizando armazenamento do navegador:", cloudError);
-      // Se falhar o upload na nuvem, faz o fallback perfeito para o ID do IndexedDB local
-      downloadURL = localId;
-      uploadedToCloud = false;
+      console.warn("Upload de nuvem falhou, utilizando fallback autônomo:", cloudError);
+      // Se falhar o upload na nuvem e o arquivo for de até 6MB, converte para Base64 Data URL.
+      // Desta forma, o conteúdo do arquivo é armazenado no próprio Firestore e sincronizado em TODOS OS DISPOSITIVOS!
+      if (file.size <= 6 * 1024 * 1024) {
+        try {
+          downloadURL = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          uploadedToCloud = true;
+        } catch (readErr) {
+          downloadURL = localId;
+          uploadedToCloud = false;
+        }
+      } else {
+        downloadURL = localId;
+        uploadedToCloud = false;
+      }
     }
 
     // 3. Define a URL de mídia correspondente
@@ -1958,9 +1974,9 @@ const AdminView: React.FC<{
 
     // 4. Exibe notificação de feedback amigável
     if (uploadedToCloud) {
-      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} enviado com sucesso para a nuvem! O link público foi salvo no banco de dados para acesso de todos os alunos.`);
+      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} processado e sincronizado com sucesso! O conteúdo foi salvo no banco de dados para acesso de todos os alunos em qualquer dispositivo.`);
     } else {
-      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} salvo temporariamente no navegador.\n\nDica: Como o upload direto falhou, cole diretamente o link do seu vídeo ou PDF hospedado externamente (no YouTube, Google Drive, Vimeo, Supabase, Dropbox, etc) para que todos os alunos consigam acessar de qualquer lugar!`);
+      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} salvo localmente neste computador.\n\nDica para sincronizar em outros dispositivos: Como o arquivo é superior a 6MB, informe o link público do seu vídeo ou PDF hospedado externamente (no YouTube, Google Drive, OneDrive, SharePoint, Vimeo, Supabase, Dropbox) para que todos os alunos consigam acessar em qualquer aparelho!`);
     }
 
     setIsUploading(false);
@@ -1983,7 +1999,7 @@ const AdminView: React.FC<{
   const isValidVideoUrl = (urlStr: string) => {
     if (!urlStr) return false;
     const trimmed = urlStr.trim();
-    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:')) return true;
+    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return true;
     try {
       const parsed = new URL(trimmed);
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -1995,7 +2011,7 @@ const AdminView: React.FC<{
   const isValidPdfUrl = (urlStr: string) => {
     if (!urlStr) return true;
     const trimmed = urlStr.trim();
-    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:')) return true;
+    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return true;
     try {
       const parsed = new URL(trimmed);
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -2735,6 +2751,7 @@ const isDirectVideo = (url: string) => {
 
   return (
     lower.startsWith('blob:') ||
+    lower.startsWith('data:') ||
     lower.includes('.mp4') ||
     lower.includes('.webm') ||
     lower.includes('.ogg') ||
@@ -3381,12 +3398,32 @@ const MediaModal: React.FC<{
 
             <div className="flex-1 overflow-y-auto max-h-[82vh] bg-slate-50">
               {!videoSrc && !pdfSrc ? (
-                <div className="flex flex-col items-center justify-center p-12 sm:p-20 text-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
-                    <GraduationCap size={32} />
+                <div className="flex flex-col items-center justify-center p-8 sm:p-16 text-center max-w-xl mx-auto">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 border border-amber-200 shadow-sm">
+                    <Zap size={32} />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-1">Conteúdo em construção</h3>
-                  <p className="text-slate-500 text-xs max-w-sm">Esta aula ainda não possui vídeo ou material PDF anexado.</p>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">
+                    {course.videoUrl?.startsWith('local-file-') || course.pdfUrl?.startsWith('local-file-')
+                      ? 'Arquivo Salvo Localmente em Outro Aparelho'
+                      : 'Conteúdo em Construção'}
+                  </h3>
+                  <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-4">
+                    {course.videoUrl?.startsWith('local-file-') || course.pdfUrl?.startsWith('local-file-')
+                      ? 'Este arquivo foi anexado a partir do armazenamento interno do navegador de outro computador e não foi enviado para a nuvem. Por isso, ele só pode ser exibido naquele aparelho específico.'
+                      : 'Esta aula ainda não possui vídeo ou material PDF anexado.'}
+                  </p>
+                  {(course.videoUrl?.startsWith('local-file-') || course.pdfUrl?.startsWith('local-file-')) && (
+                    <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-4 text-xs text-left w-full space-y-2">
+                      <p className="font-extrabold flex items-center gap-2 text-blue-700">
+                        💡 Como disponibilizar para TODOS os alunos em qualquer dispositivo:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-slate-700">
+                        <li>Acesse o <strong>Painel Admin</strong> e edite este curso.</li>
+                        <li>Cole o link público do seu vídeo ou PDF (YouTube, Google Drive, OneDrive, SharePoint, Vimeo, Supabase).</li>
+                        <li>Ao salvar, todos os dispositivos (celulares, tablets, outros computadores) carregarão a aula instantaneamente!</li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col">
