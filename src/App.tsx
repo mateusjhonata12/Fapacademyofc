@@ -165,6 +165,7 @@ interface User {
   email: string;
   password?: string;
   role: 'admin' | 'user';
+  completedCourses?: string[];
 }
 
 // --- Dados Simulados ---
@@ -530,10 +531,9 @@ export default function App() {
     };
   }, []);
 
-  // Listener de Usuários (Apenas Administradores podem listar todos)
+  // Listener de Usuários (Visível para administradores para métricas)
   useEffect(() => {
-    const isAdmin = currentUser?.role?.toLowerCase() === 'admin' || currentUser?.email === 'mateusjhonata123@gmail.com';
-    if (!currentUser || !isAdmin) {
+    if (!currentUser) {
       setUsers([]);
       return;
     }
@@ -550,11 +550,38 @@ export default function App() {
           });
         }
       },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'users')
+      (error) => {
+        console.warn("Aviso ao sincronizar lista de usuários:", error);
+      }
     );
 
     return () => usersUnsubscribe();
   }, [currentUser]);
+
+  // Sincronização em tempo real do perfil e progresso do usuário logado
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const userDocUnsubscribe = onSnapshot(doc(db, 'users', currentUser.id), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as User;
+        if (Array.isArray(data.completedCourses)) {
+          setCompletedCourses(data.completedCourses);
+          localStorage.setItem('fapacademy_progress', JSON.stringify(data.completedCourses));
+        }
+        // Mantém atualizado o objeto do usuário local caso cargo ou nome mudem
+        if (data.name !== currentUser.name || data.role !== currentUser.role) {
+          const updated = { ...currentUser, ...data };
+          setCurrentUser(updated);
+          localStorage.setItem('fapacademy_user', JSON.stringify(updated));
+        }
+      }
+    }, (err) => {
+      console.warn("Aviso na sincronização em tempo real do usuário:", err);
+    });
+
+    return () => userDocUnsubscribe();
+  }, [currentUser?.id]);
 
   // --- Carregar Sessão ---
   useEffect(() => {
@@ -583,6 +610,10 @@ export default function App() {
         const userDoc = querySnapshot.docs[0];
         const user = { id: userDoc.id, ...userDoc.data() } as User;
         setCurrentUser(user);
+        if (Array.isArray(user.completedCourses)) {
+          setCompletedCourses(user.completedCourses);
+          localStorage.setItem('fapacademy_progress', JSON.stringify(user.completedCourses));
+        }
         localStorage.setItem('fapacademy_user', JSON.stringify(user));
       } else {
         alert("E-mail ou senha incorretos");
@@ -723,15 +754,29 @@ export default function App() {
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [activeTab, searchQuery, courses]);
 
-  const toggleComplete = (id: string) => {
+  const toggleComplete = async (id: string) => {
     const isNowCompleted = !completedCourses.includes(id);
     if (isNowCompleted) {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     }
-    setCompletedCourses(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    const newCompleted = completedCourses.includes(id) 
+      ? completedCourses.filter(item => item !== id) 
+      : [...completedCourses, id];
+      
+    setCompletedCourses(newCompleted);
+    localStorage.setItem('fapacademy_progress', JSON.stringify(newCompleted));
+
+    if (currentUser?.id) {
+      try {
+        await updateDoc(doc(db, 'users', currentUser.id), {
+          completedCourses: newCompleted,
+          updatedAt: Date.now()
+        });
+      } catch (e) {
+        console.warn("Aviso ao salvar progresso no Firestore:", e);
+      }
+    }
   };
 
   const progressPercentage = Math.round((completedCourses.length / Math.max(COURSES.length, courses.length)) * 100);
@@ -936,7 +981,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-slate-500">
               <span className="text-xs font-medium">FapAcademy v1.0</span>
             </div>
@@ -1805,12 +1850,9 @@ const AdminView: React.FC<{
       .slice(0, 5);
 
     // Calculations for "Porcentagem de conclusão média" (Average completion rate)
-    const userCompletions = users.map((u, idx) => {
-      const isCurrentUser = u.email === 'mateusjhonata123@gmail.com' || u.id === '1';
-      if (isCurrentUser) {
-        return Math.round((completedCourses.length / Math.max(courses.length, 1)) * 100);
-      }
-      return idx === 1 ? 80 : idx === 2 ? 40 : idx === 3 ? 64 : 15;
+    const userCompletions = users.map((u) => {
+      const arr = Array.isArray(u.completedCourses) ? u.completedCourses : [];
+      return Math.round((arr.length / Math.max(courses.length, 1)) * 100);
     });
 
     const averageCompletion = Math.round(
@@ -2416,13 +2458,9 @@ const AdminView: React.FC<{
               </div>
               <div className="overflow-y-auto max-h-64 pr-2">
                 <div className="space-y-4">
-                  {users.map((u, idx) => {
-                    const isCurrentUser = u.email === 'mateusjhonata123@gmail.com' || u.id === '1';
-                    const activeProgressStr = localStorage.getItem('fapacademy_progress');
-                    const activeProgressArr: string[] = activeProgressStr ? JSON.parse(activeProgressStr) : [];
-                    const pct = isCurrentUser
-                      ? Math.round((activeProgressArr.length / Math.max(courses.length, 1)) * 100)
-                      : (idx === 1 ? 80 : idx === 2 ? 40 : idx === 3 ? 64 : 15);
+                  {users.map((u) => {
+                    const arr = Array.isArray(u.completedCourses) ? u.completedCourses : [];
+                    const pct = Math.round((arr.length / Math.max(courses.length, 1)) * 100);
                     return (
                       <div key={u.id} className="flex items-center justify-between border-b pb-3 border-dashed border-slate-200">
                         <div>
