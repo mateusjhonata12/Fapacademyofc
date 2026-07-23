@@ -2593,9 +2593,41 @@ const AdminView: React.FC<{
                             ))}
                           </div>
                           <p className="text-[10px] text-slate-500">
-                            Cole o link do seu vídeo hospedado na nuvem. Ele é salvo no banco de dados do sistema e disponibilizado para todos os usuários fora do AI Studio!
+                            Cole o link do seu vídeo hospedado na nuvem. O sistema converte automaticamente para reprodução direta dentro da plataforma sem redirecionamentos.
                           </p>
                         </div>
+
+                        {/* Pré-visualização em tempo real do player interno no formulário */}
+                        {newCourse.videoUrl && isValidVideoUrl(newCourse.videoUrl) && (
+                          <div className="p-3 bg-slate-900 rounded-2xl border border-slate-800 text-white space-y-2 text-left">
+                            <div className="flex items-center justify-between text-xs text-slate-300">
+                              <span className="font-bold flex items-center gap-1.5 text-blue-400">
+                                <Play size={14} className="fill-current" />
+                                Pré-visualização do Player Interno da Plataforma:
+                              </span>
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
+                                ✓ Reprodução Interna Habilitada
+                              </span>
+                            </div>
+                            <div className="w-full aspect-video max-h-[220px] rounded-xl overflow-hidden bg-black border border-slate-800">
+                              {isDirectVideo(newCourse.videoUrl) ? (
+                                <video 
+                                  src={getEmbedUrl(newCourse.videoUrl)} 
+                                  controls 
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <iframe 
+                                  src={getEmbedUrl(newCourse.videoUrl)} 
+                                  className="w-full h-full border-0"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                                  allowFullScreen
+                                  title="Pré-visualização do Vídeo"
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -2647,6 +2679,174 @@ const AdminView: React.FC<{
       </AnimatePresence>
     </motion.div>
   );
+};
+
+const isDirectVideo = (url: string) => {
+  if (!url) return false;
+  const lower = url.trim().toLowerCase();
+  
+  if (
+    lower.includes('youtube.com') || lower.includes('youtu.be') ||
+    lower.includes('vimeo.com') || lower.includes('loom.com') ||
+    lower.includes('drive.google.com') || lower.includes('sharepoint.com') ||
+    lower.includes('onedrive.live.com') || lower.includes('dailymotion.com') ||
+    lower.includes('streamable.com')
+  ) {
+    return false;
+  }
+
+  return (
+    lower.startsWith('blob:') ||
+    lower.includes('.mp4') ||
+    lower.includes('.webm') ||
+    lower.includes('.ogg') ||
+    lower.includes('.mov') ||
+    lower.includes('.m3u8') ||
+    lower.includes('supabase.co') ||
+    lower.includes('firebasestorage.googleapis.com') ||
+    lower.includes('dropbox.com') ||
+    lower.includes('raw=1')
+  );
+};
+
+const getUrlType = (url: string) => {
+  if (!url) return 'Vazia';
+  const parsed = url.toLowerCase();
+  if (parsed.includes('youtube.com') || parsed.includes('youtu.be')) return 'YouTube';
+  if (parsed.includes('vimeo.com')) return 'Vimeo';
+  if (parsed.includes('loom.com')) return 'Loom';
+  if (parsed.includes('streamable.com')) return 'Streamable';
+  if (parsed.includes('dailymotion.com')) return 'DailyMotion';
+  if (parsed.includes('sharepoint.com')) return 'SharePoint';
+  if (parsed.includes('onedrive.live.com')) return 'OneDrive';
+  if (parsed.includes('drive.google.com')) return 'Google Drive';
+  if (parsed.includes('supabase.co')) return 'Supabase Storage';
+  if (parsed.includes('firebasestorage.googleapis.com')) return 'Firebase Storage';
+  if (parsed.startsWith('blob:') || isDirectVideo(url)) return 'Vídeo Direto / MP4 (HTML5)';
+  return 'Servidor de Mídia Externo';
+};
+
+const getEmbedUrl = (url: string) => {
+  if (!url) return '';
+  let parsedUrl = url.trim();
+
+  // 1. YouTube (watch, shorts, live, shortlink, embed)
+  if (parsedUrl.includes('youtube.com') || parsedUrl.includes('youtu.be')) {
+    let videoId = '';
+    if (parsedUrl.includes('watch?v=')) {
+      videoId = parsedUrl.split('watch?v=')[1]?.split('&')[0] || '';
+    } else if (parsedUrl.includes('youtu.be/')) {
+      videoId = parsedUrl.split('youtu.be/')[1]?.split('?')[0] || '';
+    } else if (parsedUrl.includes('/shorts/')) {
+      videoId = parsedUrl.split('/shorts/')[1]?.split('?')[0] || '';
+    } else if (parsedUrl.includes('/live/')) {
+      videoId = parsedUrl.split('/live/')[1]?.split('?')[0] || '';
+    } else if (parsedUrl.includes('/embed/')) {
+      videoId = parsedUrl.split('/embed/')[1]?.split('?')[0] || '';
+    }
+    if (videoId) {
+      return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
+    }
+    return parsedUrl;
+  }
+
+  // 2. Vimeo
+  if (parsedUrl.includes('vimeo.com')) {
+    const match = parsedUrl.match(/vimeo\.com\/(\d+)/);
+    if (match && match[1]) {
+      return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
+    }
+    return parsedUrl;
+  }
+
+  // 3. Loom
+  if (parsedUrl.includes('loom.com')) {
+    if (parsedUrl.includes('/share/')) {
+      return parsedUrl.replace('/share/', '/embed/');
+    }
+    return parsedUrl;
+  }
+
+  // 4. Streamable
+  if (parsedUrl.includes('streamable.com')) {
+    const code = parsedUrl.split('streamable.com/')[1]?.split('?')[0];
+    if (code && !code.startsWith('e/')) {
+      return `https://streamable.com/e/${code}`;
+    }
+    return parsedUrl;
+  }
+
+  // 5. DailyMotion
+  if (parsedUrl.includes('dailymotion.com')) {
+    const code = parsedUrl.split('/video/')[1]?.split('?')[0];
+    if (code) {
+      return `https://www.dailymotion.com/embed/video/${code}`;
+    }
+    return parsedUrl;
+  }
+
+  // 6. Google Drive Video
+  if (parsedUrl.includes('drive.google.com')) {
+    let fileId = '';
+    if (parsedUrl.includes('/file/d/')) {
+      fileId = parsedUrl.split('/file/d/')[1]?.split('/')[0] || '';
+    } else if (parsedUrl.includes('id=')) {
+      fileId = parsedUrl.split('id=')[1]?.split('&')[0] || '';
+    }
+    if (fileId) {
+      return `https://drive.google.com/file/d/${fileId}/preview`;
+    }
+    return parsedUrl;
+  }
+
+  // 7. Dropbox
+  if (parsedUrl.includes('dropbox.com')) {
+    if (parsedUrl.includes('dl=0')) {
+      return parsedUrl.replace('dl=0', 'raw=1');
+    }
+    return parsedUrl;
+  }
+
+  // 8. SharePoint and OneDrive
+  if (parsedUrl.includes('sharepoint.com')) {
+    if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
+    const sharepointMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
+    if (sharepointMatch) {
+      const [_, domain, site, id] = sharepointMatch;
+      return `${domain}/sites/${site}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
+    }
+    const personalMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/g\/personal\/([^\/]+)\/([^\/?]+)/);
+    if (personalMatch) {
+      const [_, domain, user, id] = personalMatch;
+      return `${domain}/personal/${user}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
+    }
+    try {
+      const urlObj = new URL(parsedUrl);
+      urlObj.searchParams.set('action', 'embedview');
+      return urlObj.toString();
+    } catch (e) {
+      if (!parsedUrl.includes('action=embedview')) {
+        parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
+      }
+      return parsedUrl;
+    }
+  }
+
+  if (parsedUrl.includes('onedrive.live.com')) {
+    if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
+    try {
+      const urlObj = new URL(parsedUrl);
+      urlObj.searchParams.set('action', 'embedview');
+      return urlObj.toString();
+    } catch (e) {
+      if (!parsedUrl.includes('action=embedview')) {
+        parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
+      }
+      return parsedUrl;
+    }
+  }
+
+  return parsedUrl;
 };
 
 const MediaModal: React.FC<{ 
@@ -2840,157 +3040,6 @@ const MediaModal: React.FC<{
   const isVideoBlob = course.videoUrl?.startsWith('blob:');
   const isPdfBlob = course.pdfUrl?.startsWith('blob:');
 
-  const isDirectVideo = (url: string) => {
-    if (!url) return false;
-    const lower = url.trim().toLowerCase();
-    
-    // Services that require iframe embed
-    if (
-      lower.includes('youtube.com') || lower.includes('youtu.be') ||
-      lower.includes('vimeo.com') || lower.includes('loom.com') ||
-      lower.includes('drive.google.com') || lower.includes('sharepoint.com') ||
-      lower.includes('onedrive.live.com') || lower.includes('dailymotion.com')
-    ) {
-      return false;
-    }
-
-    return (
-      lower.startsWith('blob:') ||
-      lower.includes('.mp4') ||
-      lower.includes('.webm') ||
-      lower.includes('.ogg') ||
-      lower.includes('.mov') ||
-      lower.includes('.m3u8') ||
-      lower.includes('supabase.co') ||
-      lower.includes('firebasestorage.googleapis.com') ||
-      lower.includes('dropbox.com') ||
-      lower.includes('raw=1')
-    );
-  };
-
-  const getUrlType = (url: string) => {
-    if (!url) return 'Vazia';
-    const parsed = url.toLowerCase();
-    if (parsed.includes('youtube.com') || parsed.includes('youtu.be')) return 'YouTube';
-    if (parsed.includes('vimeo.com')) return 'Vimeo';
-    if (parsed.includes('loom.com')) return 'Loom';
-    if (parsed.includes('sharepoint.com')) return 'SharePoint';
-    if (parsed.includes('onedrive.live.com')) return 'OneDrive';
-    if (parsed.includes('drive.google.com')) return 'Google Drive';
-    if (parsed.includes('supabase.co')) return 'Supabase Storage';
-    if (parsed.includes('firebasestorage.googleapis.com')) return 'Firebase Storage';
-    if (parsed.startsWith('blob:') || isDirectVideo(url)) return 'Vídeo Direto / MP4 (HTML5)';
-    return 'Servidor de Mídia Externo';
-  };
-
-  const getEmbedUrl = (url: string) => {
-    if (!url) return '';
-    let parsedUrl = url.trim();
-
-    // 1. YouTube (watch, shorts, live, shortlink)
-    if (parsedUrl.includes('youtube.com') || parsedUrl.includes('youtu.be')) {
-      if (parsedUrl.includes('watch?v=')) {
-        parsedUrl = parsedUrl.replace('watch?v=', 'embed/');
-      } else if (parsedUrl.includes('youtu.be/')) {
-        parsedUrl = parsedUrl.replace('youtu.be/', 'youtube.com/embed/');
-      } else if (parsedUrl.includes('/shorts/')) {
-        parsedUrl = parsedUrl.replace('/shorts/', '/embed/');
-      } else if (parsedUrl.includes('/live/')) {
-        parsedUrl = parsedUrl.replace('/live/', '/embed/');
-      }
-      return parsedUrl;
-    }
-
-    // 2. Vimeo
-    if (parsedUrl.includes('vimeo.com')) {
-      const match = parsedUrl.match(/vimeo\.com\/(\d+)/);
-      if (match && match[1]) {
-        return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
-      }
-      return parsedUrl;
-    }
-
-    // 3. Loom
-    if (parsedUrl.includes('loom.com')) {
-      if (parsedUrl.includes('/share/')) {
-        return parsedUrl.replace('/share/', '/embed/');
-      }
-      return parsedUrl;
-    }
-
-    // 4. Google Drive Video
-    if (parsedUrl.includes('drive.google.com')) {
-      if (parsedUrl.includes('/view')) {
-        return parsedUrl.split('/view')[0] + '/preview';
-      }
-      if (parsedUrl.includes('/open?id=')) {
-        const id = parsedUrl.split('/open?id=')[1]?.split('&')[0];
-        if (id) return `https://drive.google.com/file/d/${id}/preview`;
-      }
-      if (parsedUrl.includes('/uc?id=')) {
-        const id = parsedUrl.split('/uc?id=')[1]?.split('&')[0];
-        if (id) return `https://drive.google.com/file/d/${id}/preview`;
-      }
-      if (!parsedUrl.endsWith('/preview') && parsedUrl.includes('/file/d/')) {
-        const parts = parsedUrl.split('/file/d/');
-        if (parts[1]) {
-          const id = parts[1].split('/')[0];
-          return `https://drive.google.com/file/d/${id}/preview`;
-        }
-      }
-      return parsedUrl;
-    }
-
-    // 5. Dropbox
-    if (parsedUrl.includes('dropbox.com')) {
-      if (parsedUrl.includes('dl=0')) {
-        return parsedUrl.replace('dl=0', 'raw=1');
-      }
-      return parsedUrl;
-    }
-
-    // 6. SharePoint and OneDrive
-    if (parsedUrl.includes('sharepoint.com')) {
-      if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
-      const sharepointMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/s\/([^\/]+)\/([^\/?]+)/);
-      if (sharepointMatch) {
-        const [_, domain, site, id] = sharepointMatch;
-        return `${domain}/sites/${site}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
-      }
-      const personalMatch = parsedUrl.match(/(https:\/\/[^\/]+)\/:v:\/g\/personal\/([^\/]+)\/([^\/?]+)/);
-      if (personalMatch) {
-        const [_, domain, user, id] = personalMatch;
-        return `${domain}/personal/${user}/_layouts/15/Embed.aspx?UniqueId=${id}&action=embedview`;
-      }
-      try {
-        const urlObj = new URL(parsedUrl);
-        urlObj.searchParams.set('action', 'embedview');
-        return urlObj.toString();
-      } catch (e) {
-        if (!parsedUrl.includes('action=embedview')) {
-          parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
-        }
-        return parsedUrl;
-      }
-    }
-
-    if (parsedUrl.includes('onedrive.live.com')) {
-      if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
-      try {
-        const urlObj = new URL(parsedUrl);
-        urlObj.searchParams.set('action', 'embedview');
-        return urlObj.toString();
-      } catch (e) {
-        if (!parsedUrl.includes('action=embedview')) {
-          parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
-        }
-        return parsedUrl;
-      }
-    }
-
-    return parsedUrl;
-  };
-
   const getPdfEmbedUrl = (url: string) => {
     if (!url) return '';
     let parsedUrl = url.trim();
@@ -3153,21 +3202,21 @@ const MediaModal: React.FC<{
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl my-auto overflow-hidden flex flex-col h-auto max-h-[98vh] border border-slate-100"
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-[1440px] my-auto overflow-hidden flex flex-col h-auto max-h-[96vh] border border-slate-100"
           >
             {/* Header Modal */}
             <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center bg-white">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-                  <GraduationCap size={20} />
+                <div className="p-3 rounded-2xl bg-blue-50 text-blue-600 shadow-sm">
+                  <GraduationCap size={24} />
                 </div>
-                <div className="max-w-[200px] sm:max-w-[300px] lg:max-w-[400px] text-left">
-                  <h3 className="text-sm sm:text-lg font-black text-slate-900 truncate leading-tight">{course?.title}</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[9px] text-[#3B82F6] font-extrabold uppercase tracking-widest">{course?.system}</span>
+                <div className="max-w-[240px] sm:max-w-[360px] lg:max-w-[500px] text-left">
+                  <h3 className="text-base sm:text-xl font-black text-slate-900 truncate leading-tight">{course?.title}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-[#3B82F6] font-extrabold uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-md">{course?.system}</span>
                     <span className="text-slate-300 text-xs">•</span>
-                    <p className="text-[9px] text-slate-500 uppercase font-extrabold tracking-widest">
-                      {currentTab === 'pdf' ? 'Material de Apoio' : 'Vídeo Aula'}
+                    <p className="text-[10px] text-slate-600 uppercase font-extrabold tracking-widest">
+                      {currentTab === 'pdf' ? 'Material de Apoio (PDF)' : 'Vídeo Aula'}
                     </p>
                   </div>
                 </div>
@@ -3177,7 +3226,7 @@ const MediaModal: React.FC<{
               {courses && courses.length > 0 && (
                 <div className="relative flex-1 max-w-md mx-0 md:mx-6" ref={searchRef}>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
                       type="text"
                       placeholder="Navegar e buscar outra aula..."
@@ -3187,14 +3236,14 @@ const MediaModal: React.FC<{
                         setIsSearchFocused(true);
                       }}
                       onFocus={() => setIsSearchFocused(true)}
-                      className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-10 pr-8 py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        <X size={14} />
+                        <X size={16} />
                       </button>
                     )}
                   </div>
@@ -3257,42 +3306,42 @@ const MediaModal: React.FC<{
               
               <button 
                 onClick={onClose} 
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-550 transition-colors shrink-0 ml-auto md:ml-0"
+                className="p-2.5 rounded-full hover:bg-slate-100 text-slate-600 transition-colors shrink-0 ml-auto md:ml-0"
                 aria-label="Fechar"
               >
-                <X size={20} />
+                <X size={22} />
               </button>
             </div>
 
-            {/* Selector de Abas se ambos existirem */}
+            {/* Selector de Abas em Destaque (MAIOR E MAIS VISÍVEL) */}
             {videoSrc && pdfSrc && (
-              <div className="flex border-b border-slate-100 bg-slate-50/50 p-1.5 gap-2">
+              <div className="flex border-b-2 border-slate-200 bg-slate-100/90 p-2 gap-3 shadow-inner">
                 <button
                   onClick={() => setCurrentTab('video')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs sm:text-sm font-bold rounded-xl transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 text-sm sm:text-base font-black rounded-2xl transition-all uppercase tracking-wide ${
                     currentTab === 'video'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 ring-2 ring-blue-400'
+                      : 'text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200'
                   }`}
                 >
-                  <Play size={14} fill={currentTab === 'video' ? 'currentColor' : 'none'} />
-                  Vídeo Aula
+                  <Play size={18} fill={currentTab === 'video' ? 'currentColor' : 'none'} />
+                  🎬 Assistir Vídeo Aula
                 </button>
                 <button
                   onClick={() => setCurrentTab('pdf')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs sm:text-sm font-bold rounded-xl transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 text-sm sm:text-base font-black rounded-2xl transition-all uppercase tracking-wide ${
                     currentTab === 'pdf'
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/10'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400'
+                      : 'text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200'
                   }`}
                 >
-                  <FileText size={14} />
-                  Material de Apoio (PDF)
+                  <FileText size={18} />
+                  📄 Material de Apoio (PDF Passo a Passo)
                 </button>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto max-h-[70vh] bg-slate-50">
+            <div className="flex-1 overflow-y-auto max-h-[82vh] bg-slate-50">
               {!videoSrc && !pdfSrc ? (
                 <div className="flex flex-col items-center justify-center p-12 sm:p-20 text-center">
                   <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
@@ -3305,63 +3354,63 @@ const MediaModal: React.FC<{
                 <div className="flex flex-col">
                   {/* Vídeo Aula - Visível apenas quando tab === 'video' */}
                   {videoSrc && currentTab === 'video' && (
-                    <div className="bg-slate-950 p-2 sm:p-4">
-                      {/* Responsive video container */}
+                    <div className="bg-slate-950 p-3 sm:p-6 flex flex-col gap-4">
+                      {/* Prominent Informational Banner for Drive / OneDrive / SharePoint if account login is restricted */}
+                      {videoSrc && (videoSrc.includes('drive.google.com') || videoSrc.includes('sharepoint.com') || videoSrc.includes('onedrive.live.com')) && (
+                        <div className="max-w-6xl mx-auto w-full bg-slate-900/90 border border-amber-500/40 text-white p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs backdrop-blur-md text-left">
+                          <div className="flex items-center gap-3">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
+                            <div>
+                              <p className="font-extrabold text-amber-300 text-xs sm:text-sm">Assista Diretamente no Player da Plataforma</p>
+                              <p className="text-slate-300 text-[11px] sm:text-xs">
+                                O vídeo é executado abaixo. Se a nuvem solicitar autorização ou login corporativo, use o botão ao lado como alternativa.
+                              </p>
+                            </div>
+                          </div>
+                          <a 
+                            href={course.videoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 font-extrabold rounded-xl text-xs transition-all text-white shadow-md shrink-0 border border-blue-400 active:scale-95"
+                          >
+                            <ExternalLink size={13} />
+                            Abrir em Nova Aba (Opcional)
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Responsive & Expanded video container */}
                       <div 
                         ref={containerRef}
                         className={`group relative flex items-center justify-center bg-black overflow-hidden mx-auto transition-all ${
                           isFullscreen 
                             ? 'w-screen h-screen' 
-                            : 'w-full max-w-4xl aspect-video rounded-2xl shadow-2xl border border-slate-800'
+                            : 'w-full max-w-6xl h-[55vh] min-h-[400px] max-h-[720px] aspect-video rounded-2xl shadow-2xl border border-slate-800'
                         }`}
                       >
                         {/* Loading Ring overlay */}
                         {videoState === 'loading' && (
-                          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-30">
-                            <Loader2 className="animate-spin text-blue-500" size={36} />
-                            <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">Carregando aula segura...</span>
+                          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-30 pointer-events-none">
+                            <Loader2 className="animate-spin text-blue-500" size={40} />
+                            <span className="text-xs font-bold text-slate-300 tracking-wider uppercase">Carregando aula...</span>
                           </div>
                         )}
 
                         {/* Status Label on Screen */}
                         <div className="absolute top-4 right-4 z-20 flex gap-2 pointer-events-none mb-1 shadow-lg shadow-black/10">
-                          <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full text-white flex items-center gap-1.5 backdrop-blur-md ${
-                            videoState === 'loading' ? 'bg-amber-600/80' :
-                            videoState === 'playing' ? 'bg-emerald-600/80' :
-                            videoState === 'paused' ? 'bg-slate-600/80' :
-                            'bg-red-600/80'
+                          <span className={`px-3 py-1 text-xs font-extrabold rounded-full text-white flex items-center gap-2 backdrop-blur-md ${
+                            videoState === 'loading' ? 'bg-amber-600/90' :
+                            videoState === 'playing' ? 'bg-emerald-600/90' :
+                            videoState === 'paused' ? 'bg-slate-600/90' :
+                            'bg-red-600/90'
                           }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full bg-white ${videoState === 'playing' || videoState === 'loading' ? 'animate-ping' : ''}`} />
+                            <span className={`w-2 h-2 rounded-full bg-white ${videoState === 'playing' || videoState === 'loading' ? 'animate-ping' : ''}`} />
                             {videoState === 'loading' ? 'Carregando' :
                              videoState === 'playing' ? 'Reproduzindo' :
                              videoState === 'paused' ? 'Pausado' :
                              'Visualização Externa'}
                           </span>
                         </div>
-
-                        {/* Warning overlay for SharePoint and OneDrive */}
-                        {videoSrc && (videoSrc.includes('sharepoint.com') || videoSrc.includes('onedrive.live.com') || videoSrc.includes('drive.google.com')) && (
-                          <div className="absolute top-4 left-4 right-4 z-10 bg-slate-900/95 border border-amber-500/30 text-white p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs backdrop-blur-md shadow-xl transition-opacity hover:opacity-100 opacity-95 text-left max-w-[95%]">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0" />
-                              <div>
-                                <p className="font-bold text-amber-400">Restrição de Login Corporativo</p>
-                                <p className="text-slate-300 text-[10px] sm:text-[11px]">
-                                  Se o vídeo não carregar ou pedir login, clique ao lado para abrir.
-                                </p>
-                              </div>
-                            </div>
-                            <a 
-                              href={course.videoUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 font-bold rounded-lg text-[10px] sm:text-xs transition-colors text-white"
-                            >
-                              <ExternalLink size={10} />
-                              Assistir Externo
-                            </a>
-                          </div>
-                        )}
 
                         {isDirectVideo(videoSrc) ? (
                           <>
@@ -3391,20 +3440,20 @@ const MediaModal: React.FC<{
                                     initial={{ scale: 0.8, opacity: 0 }}
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 1.2, opacity: 0 }}
-                                    className="w-14 h-14 bg-blue-600/80 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm"
+                                    className="w-16 h-16 bg-blue-600/90 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm"
                                   >
-                                    <Play size={24} fill="currentColor" className="ml-0.5" />
+                                    <Play size={28} fill="currentColor" className="ml-1" />
                                   </motion.div>
                                 )}
                               </AnimatePresence>
                             </div>
 
                             {/* Custom Controls Overlay for direct video */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-2 text-left">
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-2 text-left">
                               {/* Progress bar timeline */}
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(currentTime)}</span>
-                                <div className="flex-1 relative h-1 bg-white/20 rounded-full cursor-pointer group/bar">
+                                <div className="flex-1 relative h-1.5 bg-white/20 rounded-full cursor-pointer group/bar">
                                   <input 
                                     type="range"
                                     min="0"
@@ -3419,8 +3468,8 @@ const MediaModal: React.FC<{
                                     style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
                                   />
                                   <div 
-                                    className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white scale-0 group-hover/bar:scale-100 transition-transform duration-100"
-                                    style={{ left: `calc(${(currentTime / (duration || 1)) * 100}% - 5px)` }}
+                                    className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white scale-0 group-hover/bar:scale-100 transition-transform duration-100"
+                                    style={{ left: `calc(${(currentTime / (duration || 1)) * 100}% - 6px)` }}
                                   />
                                 </div>
                                 <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(duration)}</span>
@@ -3431,15 +3480,15 @@ const MediaModal: React.FC<{
                                 <div className="flex items-center gap-3">
                                   <button 
                                     onClick={handlePlayPause}
-                                    className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                                    className="w-9 h-9 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
                                   >
-                                    {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
+                                    {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
                                   </button>
 
                                   {/* Volume slider control */}
-                                  <div className="flex items-center gap-1 group/vol">
+                                  <div className="flex items-center gap-1.5 group/vol">
                                     <button onClick={handleMuteToggle} className="text-white/80 hover:text-white p-1">
-                                      {isMuted ? <VolumeX size={14} /> : volume < 0.5 ? <Volume1 size={14} /> : <Volume2 size={14} />}
+                                      {isMuted ? <VolumeX size={16} /> : volume < 0.5 ? <Volume1 size={16} /> : <Volume2 size={16} />}
                                     </button>
                                     <input 
                                       type="range"
@@ -3448,7 +3497,7 @@ const MediaModal: React.FC<{
                                       step="0.1"
                                       value={isMuted ? 0 : volume}
                                       onChange={handleVolumeChange}
-                                      className="w-12 h-1 bg-white/20 rounded appearance-none cursor-pointer accent-blue-500"
+                                      className="w-14 h-1 bg-white/20 rounded appearance-none cursor-pointer accent-blue-500"
                                     />
                                   </div>
 
@@ -3458,7 +3507,7 @@ const MediaModal: React.FC<{
                                       <button 
                                         key={rate} 
                                         onClick={() => handleRateChange(rate)}
-                                        className={`px-2 py-0.5 rounded text-[11px] font-black tracking-wide ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-405 hover:text-white hover:bg-white/10'}`}
+                                        className={`px-2 py-0.5 rounded text-xs font-black tracking-wide ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
                                       >
                                         {rate}x
                                       </button>
@@ -3468,10 +3517,10 @@ const MediaModal: React.FC<{
 
                                 <div className="flex items-center gap-2">
                                   <button onClick={togglePictureInPicture} className="text-white/80 hover:text-white p-1" title="Picture-in-Picture">
-                                    <ExternalLink size={14} />
+                                    <ExternalLink size={16} />
                                   </button>
                                   <button onClick={toggleFullscreen} className="text-white/80 hover:text-white p-1" title="Tela Cheia">
-                                    <Maximize size={14} />
+                                    <Maximize size={16} />
                                   </button>
                                 </div>
                               </div>
@@ -3482,8 +3531,8 @@ const MediaModal: React.FC<{
                             {/* Iframe wrapper for general, YouTube, vimeo, sharepoint links */}
                             <iframe 
                               src={videoSrc || undefined} 
-                              className="w-full h-full border-0 aspect-video rounded-2xl"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              className="w-full h-full border-0 rounded-2xl"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                               allowFullScreen
                               title="Vídeo Aula"
                               onLoad={() => {
@@ -3500,35 +3549,35 @@ const MediaModal: React.FC<{
                       </div>
                       
                       {/* Integrated Action & Navigation Bar below player */}
-                      <div className="max-w-4xl mx-auto mt-3 bg-slate-900 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-white border border-slate-800">
+                      <div className="max-w-6xl mx-auto w-full bg-slate-900 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-white border border-slate-800 shadow-lg">
                         {/* 10s Rewind / Fast Forward */}
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleSeek(-10)}
                             disabled={!isDirectVideo(videoSrc)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
                               isDirectVideo(videoSrc) 
                                 ? 'bg-slate-800 hover:bg-slate-700 text-white' 
-                                : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
+                                : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
                             }`}
-                            title={isDirectVideo(videoSrc) ? "Voltar 10 segundos" : "Disponível apenas para arquivos locais de vídeo"}
+                            title={isDirectVideo(videoSrc) ? "Voltar 10 segundos" : "Disponível para arquivos diretos MP4"}
                           >
-                            <RotateCcw size={13} />
+                            <RotateCcw size={14} />
                             Rebobinar 10s
                           </button>
                           
                           <button
                             onClick={() => handleSeek(10)}
                             disabled={!isDirectVideo(videoSrc)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
                               isDirectVideo(videoSrc) 
                                 ? 'bg-slate-800 hover:bg-slate-700 text-white' 
-                                : 'bg-slate-800/40 text-slate-600 cursor-not-allowed'
+                                : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
                             }`}
-                            title={isDirectVideo(videoSrc) ? "Avançar 10 segundos" : "Disponível apenas para arquivos locais de vídeo"}
+                            title={isDirectVideo(videoSrc) ? "Avançar 10 segundos" : "Disponível para arquivos diretos MP4"}
                           >
                             Avançar 10s
-                            <RotateCw size={13} />
+                            <RotateCw size={14} />
                           </button>
                         </div>
 
@@ -3537,47 +3586,46 @@ const MediaModal: React.FC<{
                           <button
                             onClick={onPrev}
                             disabled={!onPrev}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-colors ${
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-colors ${
                               onPrev 
                                 ? 'bg-transparent text-blue-400 border border-blue-500/30 hover:bg-blue-500/10' 
-                                : 'text-slate-600 cursor-not-allowed'
+                                : 'text-slate-600 border border-slate-800 cursor-not-allowed'
                             }`}
                           >
-                            <ChevronLeft size={14} />
+                            <ChevronLeft size={16} />
                             Aula Anterior
                           </button>
 
                           <button
                             onClick={onNext}
                             disabled={!onNext}
-                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-colors ${
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-colors ${
                               onNext 
-                                ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                : 'text-slate-600 bg-slate-805 cursor-not-allowed'
+                                ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/20' 
+                                : 'text-slate-600 bg-slate-800 cursor-not-allowed'
                             }`}
                           >
                             Próxima Aula
-                            <ChevronRight size={14} />
+                            <ChevronRight size={16} />
                           </button>
                         </div>
 
                         {/* External Actions & Diagnostic toggles */}
                         <div className="flex items-center gap-2">
-
                           {course.videoUrl && (
                             <a 
                               href={course.videoUrl} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs sm:text-sm font-bold border border-slate-700"
+                              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-extrabold shadow-md transition-all border border-blue-400"
                             >
-                              <ExternalLink size={13} />
-                              Nova Aba
+                              <ExternalLink size={14} />
+                              Assistir em Nova Aba
                             </a>
                           )}
                           <button
                             onClick={() => setShowLogs(!showLogs)}
-                            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold border transition-all ${
+                            className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold border transition-all ${
                               showLogs ? 'bg-indigo-600/30 text-indigo-400 border-indigo-500/50' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                             }`}
                           >
@@ -3611,36 +3659,39 @@ const MediaModal: React.FC<{
                     </div>
                   )}
 
-                  {/* Material de Apoio (PDF) - Visível apenas quando tab === 'pdf' */}
+                  {/* Material de Apoio (PDF) - Visível apenas quando tab === 'pdf' (MUITO MAIOR) */}
                   {pdfSrc && currentTab === 'pdf' && (
                     <div className="p-4 sm:p-8 bg-slate-100">
-                      <div className="max-w-4xl mx-auto">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 text-left">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-                              <FileText size={20} />
+                      <div className="max-w-6xl mx-auto space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm text-left">
+                          <div className="flex items-center gap-3.5">
+                            <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600 shadow-sm">
+                              <FileText size={24} />
                             </div>
                             <div>
-                              <h4 className="text-base sm:text-lg font-bold text-slate-900">Material de Apoio Oficial</h4>
-                              <p className="text-xs text-slate-500">Documentação e guias operacionais em PDF.</p>
+                              <h4 className="text-base sm:text-xl font-black text-slate-900">Material de Apoio Oficial (PDF)</h4>
+                              <p className="text-xs text-slate-500">Documentação e guias operacionais completos para estudo.</p>
                             </div>
                           </div>
-                          <a 
-                            href={pdfSrc} 
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shadow"
-                          >
-                            <Download size={14} />
-                            Baixar Documentação
-                          </a>
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={pdfSrc} 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white text-xs sm:text-sm font-extrabold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                            >
+                              <Download size={16} />
+                              Baixar / Abrir PDF em Nova Aba
+                            </a>
+                          </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                        {/* PDF Viewer - Taller Viewport (75vh / min-h-[750px]) */}
+                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full">
                           <iframe 
                             src={pdfEmbedSrc || undefined} 
-                            className="w-full min-h-[500px] border-0"
-                            title="Material PDF"
+                            className="w-full min-h-[750px] h-[78vh] border-0"
+                            title="Material PDF Passo a Passo"
                           ></iframe>
                         </div>
                       </div>
