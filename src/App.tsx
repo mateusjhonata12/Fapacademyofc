@@ -49,7 +49,9 @@ import {
   Volume2,
   FileCode,
   Globe,
-  Award
+  Award,
+  BarChart2,
+  TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
@@ -57,6 +59,7 @@ import { GeminiVideoUploader } from './components/GeminiVideoUploader';
 import { CertificateModal } from './components/CertificateModal';
 import { CertificatesView } from './components/CertificatesView';
 import { CertificateBanners } from './components/CertificateBanners';
+import { UserDashboard } from './components/UserDashboard';
 import { Certificate } from './types';
 import { 
   signInAnonymously,
@@ -152,6 +155,8 @@ interface SidebarItemProps {
   label: string;
   active: boolean;
   onClick: () => void;
+  badge?: React.ReactNode;
+  hasNotification?: boolean;
 }
 
 interface CourseCardProps {
@@ -162,7 +167,7 @@ interface CourseCardProps {
   theme?: 'light' | 'dark';
 }
 
-type TabType = 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'Admin' | 'GeminiVideo';
+type TabType = 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'Admin' | 'GeminiVideo' | 'MeuEmpenho';
 
 interface User {
   id: string;
@@ -423,6 +428,11 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('fapacademy_theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, [theme]);
 
   const [users, setUsers] = useState<User[]>([]);
@@ -622,15 +632,15 @@ export default function App() {
     return null;
   }, [certificates, isFinancas100, currentUser]);
 
-  // Função para resetar o empenho (progresso das aulas) e limpar certificados para testes
+  // Função para resetar o empenho (progresso das aulas) e redefinir certificados
   const handleResetProgressAndCertificates = async () => {
     if (!currentUser?.id) {
-      alert("Nenhum usuário logado para resetar.");
+      alert("Nenhum usuário logado para redefinir.");
       return;
     }
 
     const confirmReset = window.confirm(
-      "Tem certeza que deseja resetar todo o seu empenho (progresso das aulas) e limpar os certificados emitidos? Esta opção é voltada para novos testes de emissão."
+      "Atenção: Esta ação administrativa irá redefinir todo o seu empenho (progresso de aulas) e revogar os certificados emitidos. Deseja prosseguir com a redefinição definitiva?"
     );
     if (!confirmReset) return;
 
@@ -680,10 +690,10 @@ export default function App() {
 
       setCertificates([]);
 
-      alert("Empenho de aulas e certificados foram limpos com sucesso! Você pode realizar o treinamento novamente.");
+      alert("Empenho de aulas e certificados foram redefinidos com sucesso!");
     } catch (err) {
       console.error("Erro ao resetar progresso e certificados:", err);
-      alert("Progresso local resetado.");
+      alert("Progresso local redefinido com sucesso.");
     } finally {
       setIsAppLoading(false);
     }
@@ -1042,6 +1052,8 @@ export default function App() {
   };
 
   const progressPercentage = Math.round((completedCourses.length / Math.max(COURSES.length, courses.length)) * 100);
+  const hasUnlockedCertificates = is7Edu100 || isTotvs100 || isFinancas100;
+  const unlockedCount = (is7Edu100 ? 1 : 0) + (isTotvs100 ? 1 : 0) + (isFinancas100 ? 1 : 0);
 
   return (
     <AnimatePresence mode="wait">
@@ -1060,7 +1072,7 @@ export default function App() {
           key="app"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className={`flex min-h-screen font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#F1F5F9] text-slate-900'}`}
+          className={`flex min-h-screen font-sans transition-colors duration-300 ${theme === 'dark' ? 'dark bg-[#0B0F19] text-slate-100' : 'bg-[#F1F5F9] text-slate-900'}`}
         >
           {/* --- Overlay Mobile --- */}
           <AnimatePresence>
@@ -1108,9 +1120,23 @@ export default function App() {
               onClick={() => { setActiveTab('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
-              icon={<Award size={20} className="text-amber-400" />} 
+              icon={<BarChart2 size={20} className="text-emerald-400" />} 
+              label="Meu Empenho" 
+              active={activeTab === 'MeuEmpenho'} 
+              onClick={() => { setActiveTab('MeuEmpenho'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+            />
+            <SidebarItem 
+              icon={<Award size={20} className={hasUnlockedCertificates ? "text-amber-400 animate-pulse" : "text-amber-400"} />} 
               label="Certificados" 
               active={activeTab === 'Certificados'} 
+              hasNotification={hasUnlockedCertificates}
+              badge={
+                hasUnlockedCertificates ? (
+                  <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full bg-amber-500 text-slate-950 animate-pulse flex items-center gap-1 shadow-sm shrink-0">
+                    <Sparkles size={10} /> {unlockedCount} {unlockedCount > 1 ? 'Novos' : 'Novo'}
+                  </span>
+                ) : null
+              }
               onClick={() => { setActiveTab('Certificados'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
@@ -1260,28 +1286,20 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             {activeTab === 'Home' ? (
-              <div key="home-container" className="flex flex-col">
-                <div className="px-4 lg:px-8 pt-6 max-w-7xl mx-auto w-full">
-                  <CertificateBanners 
-                    is7Edu100={is7Edu100}
-                    isTotvs100={isTotvs100}
-                    isFinancas100={isFinancas100}
-                    cert7Edu={cert7Edu}
-                    certTotvs={certTotvs}
-                    certFinancas={certFinancas}
-                    onViewCert={(cert) => {
-                      setSelectedCertModal(cert);
-                      setIsCertModalOpen(true);
-                    }}
-                    onDownloadCert={(cert) => {
-                      setSelectedCertModal(cert);
-                      setIsCertModalOpen(true);
-                    }}
-                    theme={theme}
-                  />
-                </div>
-                <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
-              </div>
+              <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
+            ) : activeTab === 'MeuEmpenho' ? (
+              <UserDashboard 
+                key="meu-empenho"
+                userName={currentUser?.name || ''}
+                courses={courses}
+                completedCourses={completedCourses}
+                onNavigateToTab={(tab) => setActiveTab(tab)}
+                onOpenMedia={(course, type) => {
+                  setSelectedCourse(course);
+                  setModalType(type);
+                }}
+                theme={theme}
+              />
             ) : activeTab === 'Certificados' ? (
               <CertificatesView 
                 key="certificates"
@@ -1468,6 +1486,7 @@ export default function App() {
                     setIsAppLoading(false);
                   }
                 }}
+                onResetProgress={handleResetProgressAndCertificates}
                 theme={theme}
               />
             ) : (
@@ -1807,19 +1826,28 @@ const SystemCard: React.FC<{ title: string, color: string, description: string, 
   </button>
 );
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
+const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick, badge, hasNotification }) => {
   return (
     <button 
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all ${
+      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all relative ${
         active 
           ? 'bg-[#3B82F6] text-white shadow-lg shadow-[#3B82F6]/20' 
           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
       }`}
     >
-      {icon}
-      <span>{label}</span>
-      {active && <ChevronRight size={16} className="ml-auto" />}
+      <div className="relative flex items-center justify-center shrink-0">
+        {icon}
+        {hasNotification && (
+          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+          </span>
+        )}
+      </div>
+      <span className="truncate text-left flex-1">{label}</span>
+      {badge}
+      {active && <ChevronRight size={16} className="ml-1 shrink-0" />}
     </button>
   );
 }
@@ -2143,8 +2171,9 @@ const AdminView: React.FC<{
   onDeleteCourse: (id: string) => void,
   onUpdateCourse: (course: Course) => void,
   onSyncData: () => void,
+  onResetProgress?: () => void,
   theme?: 'light' | 'dark'
-}> = ({ users, onAddUser, onDeleteUser, onUpdateUser, courses, onAddCourse, onDeleteCourse, onUpdateCourse, onSyncData, theme = 'light' }) => {
+}> = ({ users, onAddUser, onDeleteUser, onUpdateUser, courses, onAddCourse, onDeleteCourse, onUpdateCourse, onSyncData, onResetProgress, theme = 'light' }) => {
   const [adminTab, setAdminTab] = useState<'users' | 'courses' | 'engagement'>('users');
   const [isAdding, setIsAdding] = useState(false);
   const [isBulk, setIsBulk] = useState(false);
@@ -2457,10 +2486,19 @@ const AdminView: React.FC<{
         <div className="flex flex-wrap gap-3">
           <button 
             onClick={onSyncData}
-            className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 px-6 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors border border-emerald-100"
+            className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-5 py-3 rounded-xl font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors border border-emerald-200 dark:border-emerald-800/60 shadow-sm"
           >
-            <ShieldCheck size={20} /> Sincronizar Tudo
+            <ShieldCheck size={18} /> Sincronizar Tudo
           </button>
+          {onResetProgress && (
+            <button 
+              onClick={onResetProgress}
+              className="flex items-center justify-center gap-2 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 px-5 py-3 rounded-xl font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors border border-rose-200 dark:border-rose-800/60 shadow-sm"
+              title="Redefinir permanentemente o progresso de aulas e certificados do usuário atual"
+            >
+              <RotateCcw size={18} /> Resetar Empenho & Certificados
+            </button>
+          )}
           {adminTab === 'users' ? (
             <>
               <button 
