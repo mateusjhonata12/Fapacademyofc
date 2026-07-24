@@ -28,6 +28,23 @@
         "pdfUrl": { "type": "string" }
       },
       "required": ["id", "title", "system", "videoUrl"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Issued course completion certificates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "nomeUsuario": { "type": "string" },
+        "tipoCertificado": { "type": "string", "enum": ["7Edu", "TOTVS", "Financas"] },
+        "treinamento": { "type": "string" },
+        "dataConclusao": { "type": "string" },
+        "dataEmissao": { "type": "string" },
+        "timestampConclusao": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "userId", "nomeUsuario", "tipoCertificado", "treinamento", "dataConclusao", "status"]
     }
   },
   "firestore": {
@@ -38,6 +55,10 @@
     "courses/{courseId}": {
       "schema": "Course",
       "description": "Collection of available courses"
+    },
+    "certificates/{certificateId}": {
+      "schema": "Certificate",
+      "description": "Collection of issued user certificates"
     }
   }
 }

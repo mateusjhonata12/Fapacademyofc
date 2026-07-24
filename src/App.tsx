@@ -48,11 +48,16 @@ import {
   Volume1,
   Volume2,
   FileCode,
-  Globe
+  Globe,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
 import { GeminiVideoUploader } from './components/GeminiVideoUploader';
+import { CertificateModal } from './components/CertificateModal';
+import { CertificatesView } from './components/CertificatesView';
+import { CertificateBanners } from './components/CertificateBanners';
+import { Certificate } from './types';
 import { 
   signInAnonymously,
   onAuthStateChanged,
@@ -157,7 +162,7 @@ interface CourseCardProps {
   theme?: 'light' | 'dark';
 }
 
-type TabType = 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Admin' | 'GeminiVideo';
+type TabType = 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'Admin' | 'GeminiVideo';
 
 interface User {
   id: string;
@@ -426,6 +431,263 @@ export default function App() {
   const [modalType, setModalType] = useState<'video' | 'pdf' | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(false);
+
+  // --- Estados de Certificados ---
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [selectedCertModal, setSelectedCertModal] = useState<Certificate | null>(null);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+
+  // Cálculo de Conclusão dos Treinamentos
+  const courses7Edu = useMemo(() => courses.filter(c => c.system === '7Edu'), [courses]);
+  const coursesTotvs = useMemo(() => courses.filter(c => c.system === 'TOTVS'), [courses]);
+
+  const completed7EduCount = useMemo(() => {
+    return courses7Edu.filter(c => completedCourses.includes(c.id)).length;
+  }, [courses7Edu, completedCourses]);
+
+  const completedTotvsCount = useMemo(() => {
+    return coursesTotvs.filter(c => completedCourses.includes(c.id)).length;
+  }, [coursesTotvs, completedCourses]);
+
+  const is7Edu100 = courses7Edu.length > 0 && completed7EduCount === courses7Edu.length;
+  const isTotvs100 = coursesTotvs.length > 0 && completedTotvsCount === coursesTotvs.length;
+  const isFinancas100 = is7Edu100 && isTotvs100;
+
+  // Carrega e Sincroniza os Certificados do Usuário no Firestore
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setCertificates([]);
+      return;
+    }
+
+    const q = query(collection(db, 'certificates'), where('userId', '==', currentUser.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetched: Certificate[] = [];
+      snapshot.forEach(docSnap => {
+        fetched.push({ id: docSnap.id, ...docSnap.data() } as Certificate);
+      });
+      setCertificates(fetched);
+    }, (err) => {
+      console.warn("Aviso na sincronização de certificados:", err);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.id]);
+
+  // Validação em Banco e Emissão Automática
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const autoIssueCertificates = async () => {
+      const userId = currentUser.id;
+      const userName = currentUser.name || 'Colaborador';
+      const nowFormatted = new Date().toLocaleDateString('pt-BR');
+      const nowTimeFormatted = new Date().toLocaleString('pt-BR');
+
+      // 1. Validar e Emitir Certificado do 7Edu
+      if (is7Edu100) {
+        const certId = `certificado_7edu_${userId}`;
+        const certRef = doc(db, 'certificates', certId);
+        try {
+          const docSnap = await getDocFromServer(certRef);
+          if (!docSnap.exists()) {
+            const newCert: Certificate = {
+              id: certId,
+              userId,
+              nomeUsuario: userName,
+              tipoCertificado: '7Edu',
+              treinamento: 'Sistema 7Edu',
+              dataConclusao: nowFormatted,
+              dataEmissao: nowTimeFormatted,
+              timestampConclusao: Date.now(),
+              status: 'emitido'
+            };
+            await setDoc(certRef, newCert);
+          }
+        } catch (e) {
+          console.warn("Aviso ao emitir certificado 7Edu:", e);
+        }
+      }
+
+      // 2. Validar e Emitir Certificado do TOTVS
+      if (isTotvs100) {
+        const certId = `certificado_totvs_${userId}`;
+        const certRef = doc(db, 'certificates', certId);
+        try {
+          const docSnap = await getDocFromServer(certRef);
+          if (!docSnap.exists()) {
+            const newCert: Certificate = {
+              id: certId,
+              userId,
+              nomeUsuario: userName,
+              tipoCertificado: 'TOTVS',
+              treinamento: 'Sistema TOTVS',
+              dataConclusao: nowFormatted,
+              dataEmissao: nowTimeFormatted,
+              timestampConclusao: Date.now(),
+              status: 'emitido'
+            };
+            await setDoc(certRef, newCert);
+          }
+        } catch (e) {
+          console.warn("Aviso ao emitir certificado TOTVS:", e);
+        }
+      }
+
+      // 3. Validar e Emitir Certificado de Finanças (Apenas se 7Edu E TOTVS concluídos)
+      if (isFinancas100) {
+        const certId = `certificado_financas_${userId}`;
+        const certRef = doc(db, 'certificates', certId);
+        try {
+          const docSnap = await getDocFromServer(certRef);
+          if (!docSnap.exists()) {
+            const newCert: Certificate = {
+              id: certId,
+              userId,
+              nomeUsuario: userName,
+              tipoCertificado: 'Financas',
+              treinamento: 'Finanças',
+              dataConclusao: nowFormatted,
+              dataEmissao: nowTimeFormatted,
+              timestampConclusao: Date.now(),
+              prerequisitosConcluidos: ['7Edu', 'TOTVS'],
+              status: 'emitido'
+            };
+            await setDoc(certRef, newCert);
+          }
+        } catch (e) {
+          console.warn("Aviso ao emitir certificado Finanças:", e);
+        }
+      }
+    };
+
+    autoIssueCertificates();
+  }, [is7Edu100, isTotvs100, isFinancas100, currentUser?.id, currentUser?.name]);
+
+  const cert7Edu = useMemo(() => {
+    const found = certificates.find(c => c.tipoCertificado === '7Edu');
+    if (found) return found;
+    if (is7Edu100 && currentUser) {
+      return {
+        id: `certificado_7edu_${currentUser.id}`,
+        userId: currentUser.id,
+        nomeUsuario: currentUser.name,
+        tipoCertificado: '7Edu' as const,
+        treinamento: 'Sistema 7Edu',
+        dataConclusao: new Date().toLocaleDateString('pt-BR'),
+        dataEmissao: new Date().toLocaleString('pt-BR'),
+        timestampConclusao: Date.now(),
+        status: 'emitido' as const
+      };
+    }
+    return null;
+  }, [certificates, is7Edu100, currentUser]);
+
+  const certTotvs = useMemo(() => {
+    const found = certificates.find(c => c.tipoCertificado === 'TOTVS');
+    if (found) return found;
+    if (isTotvs100 && currentUser) {
+      return {
+        id: `certificado_totvs_${currentUser.id}`,
+        userId: currentUser.id,
+        nomeUsuario: currentUser.name,
+        tipoCertificado: 'TOTVS' as const,
+        treinamento: 'Sistema TOTVS',
+        dataConclusao: new Date().toLocaleDateString('pt-BR'),
+        dataEmissao: new Date().toLocaleString('pt-BR'),
+        timestampConclusao: Date.now(),
+        status: 'emitido' as const
+      };
+    }
+    return null;
+  }, [certificates, isTotvs100, currentUser]);
+
+  const certFinancas = useMemo(() => {
+    const found = certificates.find(c => c.tipoCertificado === 'Financas');
+    if (found) return found;
+    if (isFinancas100 && currentUser) {
+      return {
+        id: `certificado_financas_${currentUser.id}`,
+        userId: currentUser.id,
+        nomeUsuario: currentUser.name,
+        tipoCertificado: 'Financas' as const,
+        treinamento: 'Finanças',
+        dataConclusao: new Date().toLocaleDateString('pt-BR'),
+        dataEmissao: new Date().toLocaleString('pt-BR'),
+        timestampConclusao: Date.now(),
+        prerequisitosConcluidos: ['7Edu', 'TOTVS'],
+        status: 'emitido' as const
+      };
+    }
+    return null;
+  }, [certificates, isFinancas100, currentUser]);
+
+  // Função para resetar o empenho (progresso das aulas) e limpar certificados para testes
+  const handleResetProgressAndCertificates = async () => {
+    if (!currentUser?.id) {
+      alert("Nenhum usuário logado para resetar.");
+      return;
+    }
+
+    const confirmReset = window.confirm(
+      "Tem certeza que deseja resetar todo o seu empenho (progresso das aulas) e limpar os certificados emitidos? Esta opção é voltada para novos testes de emissão."
+    );
+    if (!confirmReset) return;
+
+    setIsAppLoading(true);
+    try {
+      const userId = currentUser.id;
+
+      // 1. Apagar os certificados do usuário no Firestore
+      const certIds = [
+        `certificado_7edu_${userId}`,
+        `certificado_totvs_${userId}`,
+        `certificado_financas_${userId}`
+      ];
+
+      for (const certId of certIds) {
+        try {
+          await deleteDoc(doc(db, 'certificates', certId));
+        } catch (e) {
+          console.warn(`Aviso ao excluir certificado ${certId}:`, e);
+        }
+      }
+
+      // Deleta qualquer outro certificado associado ao userId
+      try {
+        const qCert = query(collection(db, 'certificates'), where('userId', '==', userId));
+        const snapshotCert = await getDocs(qCert);
+        for (const certDoc of snapshotCert.docs) {
+          await deleteDoc(doc(db, 'certificates', certDoc.id));
+        }
+      } catch (e) {
+        console.warn("Aviso ao buscar certificados adicionais para exclusão:", e);
+      }
+
+      // 2. Limpar o progresso (empenho das aulas)
+      setCompletedCourses([]);
+      localStorage.removeItem('fapacademy_progress');
+
+      // 3. Atualizar documento do usuário no Firestore
+      try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+          completedCourses: []
+        });
+      } catch (e) {
+        console.warn("Aviso ao atualizar progresso do usuário no Firestore:", e);
+      }
+
+      setCertificates([]);
+
+      alert("Empenho de aulas e certificados foram limpos com sucesso! Você pode realizar o treinamento novamente.");
+    } catch (err) {
+      console.error("Erro ao resetar progresso e certificados:", err);
+      alert("Progresso local resetado.");
+    } finally {
+      setIsAppLoading(false);
+    }
+  };
 
   // --- Listeners de Dados ---
   useEffect(() => {
@@ -846,6 +1108,12 @@ export default function App() {
               onClick={() => { setActiveTab('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
+              icon={<Award size={20} className="text-amber-400" />} 
+              label="Certificados" 
+              active={activeTab === 'Certificados'} 
+              onClick={() => { setActiveTab('Certificados'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+            />
+            <SidebarItem 
               icon={<Sparkles size={20} className="text-blue-500 animate-pulse" />} 
               label="Análise IA Gemini" 
               active={activeTab === 'GeminiVideo'} 
@@ -992,7 +1260,49 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             {activeTab === 'Home' ? (
-              <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
+              <div key="home-container" className="flex flex-col">
+                <div className="px-4 lg:px-8 pt-6 max-w-7xl mx-auto w-full">
+                  <CertificateBanners 
+                    is7Edu100={is7Edu100}
+                    isTotvs100={isTotvs100}
+                    isFinancas100={isFinancas100}
+                    cert7Edu={cert7Edu}
+                    certTotvs={certTotvs}
+                    certFinancas={certFinancas}
+                    onViewCert={(cert) => {
+                      setSelectedCertModal(cert);
+                      setIsCertModalOpen(true);
+                    }}
+                    onDownloadCert={(cert) => {
+                      setSelectedCertModal(cert);
+                      setIsCertModalOpen(true);
+                    }}
+                    theme={theme}
+                  />
+                </div>
+                <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
+              </div>
+            ) : activeTab === 'Certificados' ? (
+              <CertificatesView 
+                key="certificates"
+                userName={currentUser?.name || ''}
+                courses={courses}
+                completedCourses={completedCourses}
+                cert7Edu={cert7Edu}
+                certTotvs={certTotvs}
+                certFinancas={certFinancas}
+                onViewCert={(cert) => {
+                  setSelectedCertModal(cert);
+                  setIsCertModalOpen(true);
+                }}
+                onDownloadCert={(cert) => {
+                  setSelectedCertModal(cert);
+                  setIsCertModalOpen(true);
+                }}
+                onNavigateToSystem={(system) => setActiveTab(system as TabType)}
+                onResetProgress={handleResetProgressAndCertificates}
+                theme={theme}
+              />
             ) : activeTab === 'GeminiVideo' ? (
               <GeminiVideoUploader key="gemini-video" theme={theme} />
             ) : activeTab === 'Admin' ? (
@@ -1168,6 +1478,24 @@ export default function App() {
                 exit={{ opacity: 0, x: -20 }}
                 className="p-4 lg:p-8"
               >
+                <CertificateBanners 
+                  is7Edu100={is7Edu100}
+                  isTotvs100={isTotvs100}
+                  isFinancas100={isFinancas100}
+                  cert7Edu={cert7Edu}
+                  certTotvs={certTotvs}
+                  certFinancas={certFinancas}
+                  onViewCert={(cert) => {
+                    setSelectedCertModal(cert);
+                    setIsCertModalOpen(true);
+                  }}
+                  onDownloadCert={(cert) => {
+                    setSelectedCertModal(cert);
+                    setIsCertModalOpen(true);
+                  }}
+                  theme={theme}
+                />
+
                 <div className="mb-8">
                   <h1 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {activeTab === 'Todos' ? 'Todos os Treinamentos' : `Treinamentos ${activeTab}`}
@@ -1249,6 +1577,17 @@ export default function App() {
             />
           );
         })()}
+
+        {/* Modal de Certificados */}
+        <CertificateModal 
+          isOpen={isCertModalOpen}
+          certificate={selectedCertModal}
+          userName={currentUser?.name || ''}
+          onClose={() => {
+            setIsCertModalOpen(false);
+            setSelectedCertModal(null);
+          }}
+        />
 
         {/* Achievement Toast */}
         <AnimatePresence>
@@ -2918,6 +3257,7 @@ const MediaModal: React.FC<{
   onToggleComplete?: (id: string) => void
 }> = ({ isOpen, type, course, courses = [], onSelectCourse, onClose, onPrev, onNext, onTypeChange, isCompleted, onToggleComplete }) => {
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const searchRef = React.useRef<HTMLDivElement>(null);
   const [playbackRate, setPlaybackRate] = React.useState(1);
@@ -3183,9 +3523,28 @@ const MediaModal: React.FC<{
   const handleSeek = (offset: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime += offset;
-      addLog(`Pulou ${offset > 0 ? '+' : ''}${offset} segundos.`);
+      setCurrentTime(videoRef.current.currentTime);
+      addLog(`Pulou ${offset > 0 ? '+' : ''}${offset} segundos no vídeo.`);
+    } else if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        const newTime = Math.max(0, currentTime + offset);
+        setCurrentTime(newTime);
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: 'seekTo', args: [newTime, true] }),
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ method: 'seekTo', value: newTime }),
+          '*'
+        );
+        addLog(`Avançou/Voltou ${offset > 0 ? '+' : ''}${offset}s no player.`);
+      } catch {
+        setCurrentTime(prev => Math.max(0, prev + offset));
+        addLog(`Avançou/Voltou ${offset > 0 ? '+' : ''}${offset}s.`);
+      }
     } else {
-      addLog("Buscar por tempo (Seek/Skip) só funciona para arquivos diretos (MP4).");
+      setCurrentTime(prev => Math.max(0, prev + offset));
+      addLog(`Avançou/Voltou ${offset > 0 ? '+' : ''}${offset}s.`);
     }
   };
 
@@ -3252,25 +3611,26 @@ const MediaModal: React.FC<{
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/90 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 bg-slate-900/90 backdrop-blur-md overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-[1440px] my-auto overflow-hidden flex flex-col h-auto max-h-[96vh] border border-slate-100"
+            className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[1440px] my-auto overflow-hidden flex flex-col h-auto max-h-[98vh] sm:max-h-[96vh] border border-slate-100"
           >
             {/* Header Modal */}
-            <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center bg-white">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-blue-50 text-blue-600 shadow-sm">
-                  <GraduationCap size={24} />
+            <div className="p-3 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-stretch md:items-center bg-white">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 shadow-sm shrink-0">
+                  <GraduationCap size={20} className="sm:hidden" />
+                  <GraduationCap size={24} className="hidden sm:block" />
                 </div>
-                <div className="max-w-[240px] sm:max-w-[360px] lg:max-w-[500px] text-left">
-                  <h3 className="text-base sm:text-xl font-black text-slate-900 truncate leading-tight">{course?.title}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-[#3B82F6] font-extrabold uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-md">{course?.system}</span>
+                <div className="max-w-[200px] sm:max-w-[360px] lg:max-w-[500px] text-left">
+                  <h3 className="text-sm sm:text-xl font-black text-slate-900 truncate leading-tight">{course?.title}</h3>
+                  <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+                    <span className="text-[9px] sm:text-[10px] text-[#3B82F6] font-extrabold uppercase tracking-widest bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded-md">{course?.system}</span>
                     <span className="text-slate-300 text-xs">•</span>
-                    <p className="text-[10px] text-slate-600 uppercase font-extrabold tracking-widest">
+                    <p className="text-[9px] sm:text-[10px] text-slate-600 uppercase font-extrabold tracking-widest truncate">
                       {currentTab === 'pdf' ? 'Material de Apoio (PDF)' : 'Vídeo Aula'}
                     </p>
                   </div>
@@ -3281,7 +3641,7 @@ const MediaModal: React.FC<{
               {courses && courses.length > 0 && (
                 <div className="relative flex-1 max-w-md mx-0 md:mx-6" ref={searchRef}>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                       type="text"
                       placeholder="Navegar e buscar outra aula..."
@@ -3291,7 +3651,7 @@ const MediaModal: React.FC<{
                         setIsSearchFocused(true);
                       }}
                       onFocus={() => setIsSearchFocused(true)}
-                      className="w-full pl-10 pr-8 py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-9 pr-8 py-2 sm:py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
                     />
                     {searchQuery && (
                       <button
@@ -3361,48 +3721,52 @@ const MediaModal: React.FC<{
               
               <button 
                 onClick={onClose} 
-                className="p-2.5 rounded-full hover:bg-slate-100 text-slate-600 transition-colors shrink-0 ml-auto md:ml-0"
+                className="p-2 sm:p-2.5 rounded-full hover:bg-slate-100 text-slate-600 transition-colors shrink-0 ml-auto md:ml-0"
                 aria-label="Fechar"
               >
-                <X size={22} />
+                <X size={20} className="sm:hidden" />
+                <X size={22} className="hidden sm:block" />
               </button>
             </div>
 
-            {/* Selector de Abas em Destaque (MAIOR E MAIS VISÍVEL) */}
+            {/* Selector de Abas em Destaque (RESPONSIVO E ADAPTADO AO MOBILE) */}
             {videoSrc && pdfSrc && (
-              <div className="flex border-b-2 border-slate-200 bg-slate-100/90 p-2 gap-3 shadow-inner">
+              <div className="flex border-b-2 border-slate-200 bg-slate-100/90 p-1.5 sm:p-2 gap-1.5 sm:gap-3 shadow-inner">
                 <button
                   onClick={() => setCurrentTab('video')}
-                  className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 text-sm sm:text-base font-black rounded-2xl transition-all uppercase tracking-wide ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2.5 py-2.5 sm:py-3.5 px-2 text-xs sm:text-base font-black rounded-xl sm:rounded-2xl transition-all uppercase tracking-wide ${
                     currentTab === 'video'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 ring-2 ring-blue-400'
                       : 'text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200'
                   }`}
                 >
-                  <Play size={18} fill={currentTab === 'video' ? 'currentColor' : 'none'} />
-                  🎬 Assistir Vídeo Aula
+                  <Play size={15} className="sm:hidden" fill={currentTab === 'video' ? 'currentColor' : 'none'} />
+                  <Play size={18} className="hidden sm:block" fill={currentTab === 'video' ? 'currentColor' : 'none'} />
+                  <span className="truncate">🎬 Vídeo Aula</span>
                 </button>
                 <button
                   onClick={() => setCurrentTab('pdf')}
-                  className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 text-sm sm:text-base font-black rounded-2xl transition-all uppercase tracking-wide ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2.5 py-2.5 sm:py-3.5 px-2 text-xs sm:text-base font-black rounded-xl sm:rounded-2xl transition-all uppercase tracking-wide ${
                     currentTab === 'pdf'
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400'
                       : 'text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200'
                   }`}
                 >
-                  <FileText size={18} />
-                  📄 Material de Apoio (PDF Passo a Passo)
+                  <FileText size={15} className="sm:hidden" />
+                  <FileText size={18} className="hidden sm:block" />
+                  <span className="truncate">📄 Passo a Passo (PDF)</span>
                 </button>
               </div>
             )}
 
             <div className="flex-1 overflow-y-auto max-h-[82vh] bg-slate-50">
               {!videoSrc && !pdfSrc ? (
-                <div className="flex flex-col items-center justify-center p-8 sm:p-16 text-center max-w-xl mx-auto">
-                  <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 border border-amber-200 shadow-sm">
-                    <Zap size={32} />
+                <div className="flex flex-col items-center justify-center p-6 sm:p-16 text-center max-w-xl mx-auto">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 sm:mb-4 border border-amber-200 shadow-sm">
+                    <Zap size={28} className="sm:hidden" />
+                    <Zap size={32} className="hidden sm:block" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-2">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2">
                     {course.videoUrl?.startsWith('local-file-') || course.pdfUrl?.startsWith('local-file-')
                       ? 'Arquivo Salvo Localmente em Outro Aparelho'
                       : 'Conteúdo em Construção'}
@@ -3413,7 +3777,7 @@ const MediaModal: React.FC<{
                       : 'Esta aula ainda não possui vídeo ou material PDF anexado.'}
                   </p>
                   {(course.videoUrl?.startsWith('local-file-') || course.pdfUrl?.startsWith('local-file-')) && (
-                    <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-4 text-xs text-left w-full space-y-2">
+                    <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-3 sm:p-4 text-xs text-left w-full space-y-2">
                       <p className="font-extrabold flex items-center gap-2 text-blue-700">
                         💡 Como disponibilizar para TODOS os alunos em qualquer dispositivo:
                       </p>
@@ -3429,57 +3793,53 @@ const MediaModal: React.FC<{
                 <div className="flex flex-col">
                   {/* Vídeo Aula - Visível apenas quando tab === 'video' */}
                   {videoSrc && currentTab === 'video' && (
-                    <div className="bg-slate-950 p-3 sm:p-6 flex flex-col gap-4">
-                      {/* Prominent Informational Banner for Drive / OneDrive / SharePoint if account login is restricted */}
+                    <div className="bg-slate-950 p-2 sm:p-4 flex flex-col gap-2.5">
+                      {/* Compact Informational Banner for Drive / OneDrive / SharePoint if account login is restricted */}
                       {videoSrc && (videoSrc.includes('drive.google.com') || videoSrc.includes('sharepoint.com') || videoSrc.includes('onedrive.live.com')) && (
-                        <div className="max-w-6xl mx-auto w-full bg-slate-900/90 border border-amber-500/40 text-white p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs backdrop-blur-md text-left">
-                          <div className="flex items-center gap-3">
-                            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping flex-shrink-0" />
-                            <div>
-                              <p className="font-extrabold text-amber-300 text-xs sm:text-sm">Assista Diretamente no Player da Plataforma</p>
-                              <p className="text-slate-300 text-[11px] sm:text-xs">
-                                O vídeo é executado abaixo. Se a nuvem solicitar autorização ou login corporativo, use o botão ao lado como alternativa.
-                              </p>
-                            </div>
-                          </div>
+                        <div className="max-w-5xl mx-auto w-full bg-amber-950/40 border border-amber-500/30 text-amber-200/90 px-3 py-1.5 rounded-lg flex items-center justify-between gap-2 text-[10px] sm:text-xs text-left">
+                          <p className="truncate flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                            <span className="font-bold text-amber-200">Player Integrado</span>
+                            <span className="hidden sm:inline text-amber-300/80">(Se a nuvem solicitar login corporativo, use o botão ao lado)</span>
+                          </p>
                           <a 
                             href={course.videoUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 font-extrabold rounded-xl text-xs transition-all text-white shadow-md shrink-0 border border-blue-400 active:scale-95"
+                            className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold rounded-md text-[10px] sm:text-xs shrink-0 border border-amber-500/40 transition-all active:scale-95"
                           >
-                            <ExternalLink size={13} />
-                            Abrir em Nova Aba (Opcional)
+                            <ExternalLink size={11} />
+                            Abrir em Nova Aba
                           </a>
                         </div>
                       )}
 
-                      {/* Responsive & Expanded video container */}
+                      {/* Video Container - Destacado e Proporcional 16:9 sem deslocamento */}
                       <div 
                         ref={containerRef}
                         className={`group relative flex items-center justify-center bg-black overflow-hidden mx-auto transition-all ${
                           isFullscreen 
                             ? 'w-screen h-screen' 
-                            : 'w-full max-w-6xl h-[55vh] min-h-[400px] max-h-[720px] aspect-video rounded-2xl shadow-2xl border border-slate-800'
+                            : 'w-full max-w-5xl aspect-video rounded-xl shadow-2xl border border-slate-800 ring-1 ring-slate-800'
                         }`}
                       >
                         {/* Loading Ring overlay */}
                         {videoState === 'loading' && (
-                          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-30 pointer-events-none">
-                            <Loader2 className="animate-spin text-blue-500" size={40} />
-                            <span className="text-xs font-bold text-slate-300 tracking-wider uppercase">Carregando aula...</span>
+                          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30 pointer-events-none">
+                            <Loader2 className="animate-spin text-blue-500" size={28} />
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-300 tracking-wider uppercase">Carregando aula...</span>
                           </div>
                         )}
 
                         {/* Status Label on Screen */}
-                        <div className="absolute top-4 right-4 z-20 flex gap-2 pointer-events-none mb-1 shadow-lg shadow-black/10">
-                          <span className={`px-3 py-1 text-xs font-extrabold rounded-full text-white flex items-center gap-2 backdrop-blur-md ${
+                        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 flex gap-1.5 pointer-events-none shadow-md">
+                          <span className={`px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold rounded-full text-white flex items-center gap-1.5 backdrop-blur-md ${
                             videoState === 'loading' ? 'bg-amber-600/90' :
                             videoState === 'playing' ? 'bg-emerald-600/90' :
                             videoState === 'paused' ? 'bg-slate-600/90' :
                             'bg-red-600/90'
                           }`}>
-                            <span className={`w-2 h-2 rounded-full bg-white ${videoState === 'playing' || videoState === 'loading' ? 'animate-ping' : ''}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full bg-white ${videoState === 'playing' || videoState === 'loading' ? 'animate-ping' : ''}`} />
                             {videoState === 'loading' ? 'Carregando' :
                              videoState === 'playing' ? 'Reproduzindo' :
                              videoState === 'paused' ? 'Pausado' :
@@ -3515,20 +3875,20 @@ const MediaModal: React.FC<{
                                     initial={{ scale: 0.8, opacity: 0 }}
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 1.2, opacity: 0 }}
-                                    className="w-16 h-16 bg-blue-600/90 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm"
+                                    className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-600/90 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm"
                                   >
-                                    <Play size={28} fill="currentColor" className="ml-1" />
+                                    <Play size={22} fill="currentColor" className="ml-1" />
                                   </motion.div>
                                 )}
                               </AnimatePresence>
                             </div>
 
                             {/* Custom Controls Overlay for direct video */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-4 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-2 text-left">
-                              {/* Progress bar timeline */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-2 sm:p-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-1.5 text-left">
+                              {/* Progress bar timeline on hover */}
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(currentTime)}</span>
-                                <div className="flex-1 relative h-1.5 bg-white/20 rounded-full cursor-pointer group/bar">
+                                <span className="text-[10px] font-bold font-mono text-white tracking-wider">{formatTime(currentTime)}</span>
+                                <div className="flex-1 relative h-2 bg-white/20 rounded-full cursor-pointer group/bar flex items-center">
                                   <input 
                                     type="range"
                                     min="0"
@@ -3543,27 +3903,27 @@ const MediaModal: React.FC<{
                                     style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
                                   />
                                   <div 
-                                    className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white scale-0 group-hover/bar:scale-100 transition-transform duration-100"
-                                    style={{ left: `calc(${(currentTime / (duration || 1)) * 100}% - 6px)` }}
+                                    className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-white scale-100 transition-transform duration-100 shadow-md"
+                                    style={{ left: `calc(${(currentTime / (duration || 1)) * 100}% - 7px)` }}
                                   />
                                 </div>
-                                <span className="text-xs font-bold font-mono text-white tracking-wider">{formatTime(duration)}</span>
+                                <span className="text-[10px] font-bold font-mono text-white tracking-wider">{formatTime(duration)}</span>
                               </div>
 
                               {/* Controls row */}
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <button 
                                     onClick={handlePlayPause}
-                                    className="w-9 h-9 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
                                   >
-                                    {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                                    {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
                                   </button>
 
                                   {/* Volume slider control */}
-                                  <div className="flex items-center gap-1.5 group/vol">
+                                  <div className="flex items-center gap-1 group/vol">
                                     <button onClick={handleMuteToggle} className="text-white/80 hover:text-white p-1">
-                                      {isMuted ? <VolumeX size={16} /> : volume < 0.5 ? <Volume1 size={16} /> : <Volume2 size={16} />}
+                                      {isMuted ? <VolumeX size={14} /> : volume < 0.5 ? <Volume1 size={14} /> : <Volume2 size={14} />}
                                     </button>
                                     <input 
                                       type="range"
@@ -3572,17 +3932,17 @@ const MediaModal: React.FC<{
                                       step="0.1"
                                       value={isMuted ? 0 : volume}
                                       onChange={handleVolumeChange}
-                                      className="w-14 h-1 bg-white/20 rounded appearance-none cursor-pointer accent-blue-500"
+                                      className="w-12 h-1 bg-white/20 rounded appearance-none cursor-pointer accent-blue-500"
                                     />
                                   </div>
 
                                   {/* Speed setting */}
-                                  <div className="flex gap-1.5">
+                                  <div className="flex gap-1">
                                     {[1, 1.5, 2].map(rate => (
                                       <button 
                                         key={rate} 
                                         onClick={() => handleRateChange(rate)}
-                                        className={`px-2 py-0.5 rounded text-xs font-black tracking-wide ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-black tracking-wide ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
                                       >
                                         {rate}x
                                       </button>
@@ -3590,12 +3950,12 @@ const MediaModal: React.FC<{
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                   <button onClick={togglePictureInPicture} className="text-white/80 hover:text-white p-1" title="Picture-in-Picture">
-                                    <ExternalLink size={16} />
+                                    <ExternalLink size={14} />
                                   </button>
                                   <button onClick={toggleFullscreen} className="text-white/80 hover:text-white p-1" title="Tela Cheia">
-                                    <Maximize size={16} />
+                                    <Maximize size={14} />
                                   </button>
                                 </div>
                               </div>
@@ -3605,8 +3965,9 @@ const MediaModal: React.FC<{
                           <div className="w-full h-full relative">
                             {/* Iframe wrapper for general, YouTube, vimeo, sharepoint links */}
                             <iframe 
+                              ref={iframeRef}
                               src={videoSrc || undefined} 
-                              className="w-full h-full border-0 rounded-2xl"
+                              className="w-full h-full border-0 rounded-xl"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                               allowFullScreen
                               title="Vídeo Aula"
@@ -3623,129 +3984,123 @@ const MediaModal: React.FC<{
                         )}
                       </div>
                       
-                      {/* Integrated Action & Navigation Bar below player */}
-                      <div className="max-w-6xl mx-auto w-full bg-slate-900 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-white border border-slate-800 shadow-lg">
-                        {/* 10s Rewind / Fast Forward */}
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleSeek(-10)}
-                            disabled={!isDirectVideo(videoSrc)}
-                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
-                              isDirectVideo(videoSrc) 
-                                ? 'bg-slate-800 hover:bg-slate-700 text-white' 
-                                : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
-                            }`}
-                            title={isDirectVideo(videoSrc) ? "Voltar 10 segundos" : "Disponível para arquivos diretos MP4"}
+                      {/* Integrated Action & Navigation Bar below player - Com Destaque aos Controles e Navegação do Vídeo */}
+                      <div className="max-w-5xl mx-auto w-full bg-slate-900 rounded-xl p-2.5 sm:p-3 flex flex-col gap-2 text-white border border-slate-800 shadow-md">
+                        {/* Interactive Timeline Bar for Seeking to Any Point in Video */}
+                        <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80">
+                          <button 
+                            onClick={handlePlayPause}
+                            className="w-7 h-7 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-md text-white shrink-0 transition-all active:scale-95"
+                            title={isPlaying ? "Pausar" : "Reproduzir"}
                           >
-                            <RotateCcw size={14} />
-                            Rebobinar 10s
+                            {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="ml-0.5" />}
                           </button>
-                          
-                          <button
-                            onClick={() => handleSeek(10)}
-                            disabled={!isDirectVideo(videoSrc)}
-                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
-                              isDirectVideo(videoSrc) 
-                                ? 'bg-slate-800 hover:bg-slate-700 text-white' 
-                                : 'bg-slate-800/40 text-slate-500 cursor-not-allowed'
-                            }`}
-                            title={isDirectVideo(videoSrc) ? "Avançar 10 segundos" : "Disponível para arquivos diretos MP4"}
-                          >
-                            Avançar 10s
-                            <RotateCw size={14} />
-                          </button>
+                          <span className="text-[10px] font-mono font-bold text-slate-300 w-9 text-right shrink-0">{formatTime(currentTime)}</span>
+                          <div className="flex-1 relative h-2 bg-slate-800 rounded-full cursor-pointer flex items-center group/timeline">
+                            <input 
+                              type="range"
+                              min="0"
+                              max={duration || 100}
+                              step="0.1"
+                              value={currentTime}
+                              onChange={handleSeekChange}
+                              className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
+                              title="Clique ou arraste para ir a qualquer ponto do vídeo"
+                            />
+                            <div 
+                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full"
+                              style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                            />
+                            <div 
+                              className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-white shadow-md shadow-blue-500/50 scale-100 transition-transform duration-100"
+                              style={{ left: `calc(${duration ? (currentTime / duration) * 100 : 0}% - 7px)` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-slate-400 w-9 shrink-0">{formatTime(duration)}</span>
                         </div>
 
-                        {/* Navigation: Prev / Next */}
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={onPrev}
-                            disabled={!onPrev}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-colors ${
-                              onPrev 
-                                ? 'bg-transparent text-blue-400 border border-blue-500/30 hover:bg-blue-500/10' 
-                                : 'text-slate-600 border border-slate-800 cursor-not-allowed'
-                            }`}
-                          >
-                            <ChevronLeft size={16} />
-                            Aula Anterior
-                          </button>
-
-                          <button
-                            onClick={onNext}
-                            disabled={!onNext}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-colors ${
-                              onNext 
-                                ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/20' 
-                                : 'text-slate-600 bg-slate-800 cursor-not-allowed'
-                            }`}
-                          >
-                            Próxima Aula
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-
-                        {/* External Actions & Diagnostic toggles */}
-                        <div className="flex items-center gap-2">
-                          {course.videoUrl && (
-                            <a 
-                              href={course.videoUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs sm:text-sm font-extrabold shadow-md transition-all border border-blue-400"
+                        {/* Action Controls Row - Perfeitamente Adaptado para Mobile e Desktop */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs">
+                          {/* Destacados: Voltar 10s e Avançar 10s (SEMPRE ATIVOS) */}
+                          <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto">
+                            <button
+                              onClick={() => handleSeek(-10)}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold bg-blue-600/25 hover:bg-blue-600/35 text-blue-200 border border-blue-500/50 active:scale-95 transition-all shadow-sm"
+                              title="Voltar 10 segundos no vídeo"
                             >
-                              <ExternalLink size={14} />
-                              Assistir em Nova Aba
-                            </a>
-                          )}
-                          <button
-                            onClick={() => setShowLogs(!showLogs)}
-                            className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold border transition-all ${
-                              showLogs ? 'bg-indigo-600/30 text-indigo-400 border-indigo-500/50' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                            }`}
-                          >
-                            Diagnóstico
-                          </button>
+                              <RotateCcw size={14} />
+                              Voltar 10s
+                            </button>
+                            
+                            <button
+                              onClick={() => handleSeek(10)}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold bg-blue-600/25 hover:bg-blue-600/35 text-blue-200 border border-blue-500/50 active:scale-95 transition-all shadow-sm"
+                              title="Avançar 10 segundos no vídeo"
+                            >
+                              Avançar 10s
+                              <RotateCw size={14} />
+                            </button>
+                          </div>
+
+                          {/* Navegação entre Aulas e Abrir em Nova Aba */}
+                          <div className="grid grid-cols-3 sm:flex items-center gap-1.5 w-full sm:w-auto">
+                            <button
+                              onClick={onPrev}
+                              disabled={!onPrev}
+                              className={`flex items-center justify-center gap-1 px-2.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                                onPrev 
+                                  ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 active:scale-95' 
+                                  : 'text-slate-600 bg-slate-900 border border-slate-800/60 cursor-not-allowed opacity-50'
+                              }`}
+                            >
+                              <ChevronLeft size={14} />
+                              Anterior
+                            </button>
+
+                            <button
+                              onClick={onNext}
+                              disabled={!onNext}
+                              className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                                onNext 
+                                  ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/20 active:scale-95' 
+                                  : 'text-slate-600 bg-slate-900 border border-slate-800/60 cursor-not-allowed opacity-50'
+                              }`}
+                            >
+                              Próxima
+                              <ChevronRight size={14} />
+                            </button>
+
+                            {course.videoUrl && (
+                              <a 
+                                href={course.videoUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all border border-slate-700 active:scale-95 shrink-0"
+                                title="Abrir vídeo em nova aba do navegador"
+                              >
+                                <ExternalLink size={13} />
+                                Nova Aba
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Diagnostic logs output console */}
-                  {showLogs && (
-                    <div className="mx-4 sm:mx-8 mt-3 bg-slate-900 border border-slate-800 rounded-xl p-4 font-mono text-[11px] text-emerald-400 max-h-36 overflow-y-auto text-left">
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
-                        <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          Log de Diagnóstico Técnico de Mídia
-                        </span>
-                        <button 
-                          onClick={() => setDiagnosticLogs([])}
-                          className="text-[9px] bg-slate-800 px-2 py-0.5 rounded hover:text-white"
-                        >
-                          Limpar
-                        </button>
-                      </div>
-                      <div className="space-y-0.5">
-                        {diagnosticLogs.map((log, index) => (
-                          <p key={index}>{log}</p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Material de Apoio (PDF) - Visível apenas quando tab === 'pdf' (MUITO MAIOR) */}
+                  {/* Material de Apoio (PDF) - Visível apenas quando tab === 'pdf' */}
                   {pdfSrc && currentTab === 'pdf' && (
-                    <div className="p-4 sm:p-8 bg-slate-100">
-                      <div className="max-w-6xl mx-auto space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm text-left">
-                          <div className="flex items-center gap-3.5">
-                            <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600 shadow-sm">
-                              <FileText size={24} />
+                    <div className="p-2 sm:p-8 bg-slate-100">
+                      <div className="max-w-6xl mx-auto space-y-3 sm:space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm text-left">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-600 shadow-sm shrink-0">
+                              <FileText size={20} className="sm:hidden" />
+                              <FileText size={24} className="hidden sm:block" />
                             </div>
                             <div>
-                              <h4 className="text-base sm:text-xl font-black text-slate-900">Material de Apoio Oficial (PDF)</h4>
-                              <p className="text-xs text-slate-500">Documentação e guias operacionais completos para estudo.</p>
+                              <h4 className="text-sm sm:text-xl font-black text-slate-900">Material de Apoio Oficial (PDF)</h4>
+                              <p className="text-[11px] sm:text-xs text-slate-500">Documentação e guias operacionais completos para estudo.</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -3753,19 +4108,19 @@ const MediaModal: React.FC<{
                               href={pdfSrc} 
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 text-white text-xs sm:text-sm font-extrabold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl bg-emerald-600 text-white text-xs sm:text-sm font-extrabold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
                             >
-                              <Download size={16} />
+                              <Download size={14} />
                               Baixar / Abrir PDF em Nova Aba
                             </a>
                           </div>
                         </div>
 
-                        {/* PDF Viewer - Taller Viewport (75vh / min-h-[750px]) */}
-                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full">
+                        {/* PDF Viewer - Proportional Viewport */}
+                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full">
                           <iframe 
                             src={pdfEmbedSrc || undefined} 
-                            className="w-full min-h-[750px] h-[78vh] border-0"
+                            className="w-full min-h-[420px] sm:min-h-[750px] h-[60vh] sm:h-[78vh] border-0"
                             title="Material PDF Passo a Passo"
                           ></iframe>
                         </div>
@@ -3774,8 +4129,8 @@ const MediaModal: React.FC<{
                   )}
 
                   {/* Informações detalhadas da aula */}
-                  <div className="p-4 sm:p-6 md:p-8 bg-white grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
-                    <div className="lg:col-span-2 space-y-4">
+                  <div className="p-3 sm:p-6 md:p-8 bg-white grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 text-left">
+                    <div className="lg:col-span-7 space-y-3 sm:space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`px-2 py-0.5 text-[10px] sm:text-xs font-black rounded-lg ${course.system === '7Edu' ? 'bg-blue-550/10 text-blue-600' : 'bg-indigo-550/10 text-indigo-600'}`}>
                           {course.system}
@@ -3790,7 +4145,7 @@ const MediaModal: React.FC<{
                         </span>
                       </div>
 
-                      <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight">
+                      <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight">
                         {course.title}
                       </h1>
 
@@ -3799,28 +4154,28 @@ const MediaModal: React.FC<{
                       </p>
                     </div>
 
-                    {/* Progress Toggle Card */}
-                    <div className="bg-slate-50 border border-slate-250/20 p-4 rounded-2xl flex flex-col justify-between gap-4">
-                      <div className="space-y-3">
+                    {/* Progress Toggle Card (Otimizado para Mobile e Desktop) */}
+                    <div className="lg:col-span-5 bg-slate-50 border border-slate-200/80 p-4 sm:p-6 md:p-7 rounded-xl sm:rounded-2xl flex flex-col justify-between gap-4 sm:gap-5 shadow-sm">
+                      <div className="space-y-3 sm:space-y-4">
                         <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Seu Progresso</h4>
                         
-                        <div className="p-3 bg-white border border-slate-100 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-200 transition-colors">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 size={16} className={isCompleted ? "text-emerald-500" : "text-slate-300"} />
+                        <div className="p-3 sm:p-4 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-300 transition-colors">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
+                            <CheckCircle2 size={18} className={isCompleted ? "text-emerald-500" : "text-slate-300"} />
                             <div className="text-left leading-tight">
-                              <p className="text-xs font-bold text-slate-800">Concluído</p>
-                              <p className="text-[9px] text-slate-500">Registre sua evolução</p>
+                              <p className="text-xs sm:text-sm font-bold text-slate-800">Concluído</p>
+                              <p className="text-[10px] sm:text-xs text-slate-500">Registre sua evolução nesta aula</p>
                             </div>
                           </div>
                           
                           <button
                             onClick={() => onToggleComplete?.(course.id)}
-                            className={`h-5 w-11 rounded-full p-0.5 transition-colors relative duration-200 outline-none ${
+                            className={`h-5 sm:h-6 w-10 sm:w-12 rounded-full p-0.5 transition-colors relative duration-200 outline-none ${
                               isCompleted ? 'bg-emerald-500' : 'bg-slate-350'
                             }`}
                           >
-                            <div className={`h-4 w-4 rounded-full bg-white transition-all shadow-md ${
-                              isCompleted ? 'translate-x-6' : 'translate-x-0'
+                            <div className={`h-4 sm:h-5 w-4 sm:w-5 rounded-full bg-white transition-all shadow-md ${
+                              isCompleted ? 'translate-x-5 sm:translate-x-6' : 'translate-x-0'
                             }`} />
                           </button>
                         </div>
@@ -3828,28 +4183,28 @@ const MediaModal: React.FC<{
                         {/* Botão de Marcar Conclusão */}
                         <button
                           onClick={() => onToggleComplete?.(course.id)}
-                          className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
+                          className={`w-full py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
                             isCompleted 
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-250 hover:bg-emerald-100' 
                               : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/10'
                           }`}
                         >
-                          <CheckCircle2 size={14} className={isCompleted ? "text-emerald-500" : "text-white"} />
+                          <CheckCircle2 size={16} className={isCompleted ? "text-emerald-500" : "text-white"} />
                           {isCompleted ? 'Concluído! Desmarcar aula' : 'Marcar Aula como Concluída'}
                         </button>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2.5 bg-white border border-slate-100 rounded-lg text-left">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase block">Duração</span>
-                            <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1 mt-0.5">
-                              <Clock size={12} className="text-[#3B82F6]" />
+                        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                          <div className="p-2.5 sm:p-3 bg-white border border-slate-200/80 rounded-xl text-left">
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase block">Duração</span>
+                            <span className="text-xs sm:text-sm text-slate-800 font-extrabold flex items-center gap-1 sm:gap-1.5 mt-0.5">
+                              <Clock size={13} className="text-[#3B82F6]" />
                               {course.duration}
                             </span>
                           </div>
-                          <div className="p-2.5 bg-white border border-slate-100 rounded-lg text-left">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase block">Nível</span>
-                            <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1 mt-0.5">
-                              <BarChart size={12} className="text-[#3B82F6]" />
+                          <div className="p-2.5 sm:p-3 bg-white border border-slate-200/80 rounded-xl text-left">
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase block">Nível</span>
+                            <span className="text-xs sm:text-sm text-slate-800 font-extrabold flex items-center gap-1 sm:gap-1.5 mt-0.5">
+                              <BarChart size={13} className="text-[#3B82F6]" />
                               {course.difficulty}
                             </span>
                           </div>
