@@ -420,11 +420,21 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('Home');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
   const [completedCourses, setCompletedCourses] = useState<string[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('fapacademy_theme');
     return (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : 'light';
   });
+
+  const handleContentScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTop > 15) {
+      if (!isHeaderScrolled) setIsHeaderScrolled(true);
+    } else {
+      if (isHeaderScrolled) setIsHeaderScrolled(false);
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('fapacademy_theme', theme);
@@ -1237,30 +1247,57 @@ export default function App() {
 
       {/* --- Conteúdo Principal --- */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Header Mobile & Desktop Search */}
-        <header className={`sticky top-0 z-30 flex h-16 items-center justify-between border-b px-4 lg:px-8 transition-colors duration-300 ${
-          theme === 'dark' ? 'border-slate-800 bg-[#0F172A] text-white' : 'border-slate-200 bg-white text-slate-900'
-        }`}>
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`rounded-md p-2 transition-colors ${
-              theme === 'dark' ? 'hover:bg-slate-800 text-white' : 'hover:bg-slate-100'
-            }`}
-          >
-            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+        {/* Header Fixed Glassmorphism - Senior SaaS UX/UI */}
+        <header 
+          className={`sticky top-0 z-40 flex h-14 items-center justify-between px-4 sm:px-6 transition-all duration-300 border-b ${
+            theme === 'dark'
+              ? isHeaderScrolled
+                ? 'bg-[#0B0F19]/90 border-slate-800/90 shadow-xl shadow-black/40 backdrop-blur-xl text-white'
+                : 'bg-[#0F172A]/85 border-slate-800/60 shadow-sm backdrop-blur-md text-white'
+              : isHeaderScrolled
+                ? 'bg-white/95 border-slate-200/90 shadow-md backdrop-blur-xl text-slate-900'
+                : 'bg-white/90 border-slate-200/80 shadow-sm backdrop-blur-md text-slate-900'
+          }`}
+        >
+          {/* Lado Esquerdo: Menu Hamburger + Logo FapAcademy */}
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className={`p-2 rounded-xl transition-all flex items-center justify-center border shadow-sm shrink-0 active:scale-95 ${
+                theme === 'dark' 
+                  ? 'text-slate-300 hover:text-white hover:bg-slate-800/80 border-slate-800/60' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200/80'
+              }`}
+              title={isSidebarOpen ? "Ocultar Menu Lateral" : "Exibir Menu Lateral"}
+            >
+              {isSidebarOpen ? <X size={19} /> : <Menu size={19} />}
+            </button>
 
-          <div className="flex flex-1 items-center justify-center px-4 lg:justify-start lg:px-0">
+            <button 
+              onClick={() => setActiveTab('Home')}
+              className="flex items-center gap-2.5 px-1 py-1 rounded-xl transition-all hover:opacity-90 group text-left shrink-0"
+            >
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                <GraduationCap size={18} />
+              </div>
+              <span className={`font-display font-black text-base tracking-tight leading-none ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                FapAcademy
+              </span>
+            </button>
+          </div>
+
+          {/* Lado Centro: Pesquisa Integrada Limpa */}
+          <div className="flex flex-1 items-center justify-center px-4 max-w-md">
             {activeTab !== 'Home' && (
-              <div className="relative w-full max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <div className="relative w-full max-w-sm sm:max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                 <input 
                   type="text" 
                   placeholder="Pesquisar procedimento..." 
-                  className={`w-full rounded-full border py-2 pl-10 pr-4 text-sm outline-none focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20 transition-all ${
-                    theme === 'dark' 
-                      ? 'bg-slate-850 border-slate-700 text-slate-100 placeholder-slate-500' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
+                  className={`w-full rounded-xl border py-1.5 pl-9 pr-4 text-xs sm:text-sm outline-none transition-all shadow-inner ${
+                    theme === 'dark'
+                      ? 'bg-slate-900/70 border-slate-800 text-slate-100 placeholder-slate-400 focus:border-blue-500/80 focus:bg-slate-900 focus:ring-2 focus:ring-blue-500/20'
+                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10'
                   }`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1269,15 +1306,41 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="text-xs font-medium">FapAcademy v1.0</span>
+          {/* Lado Direito: Alternador de Tema + Perfil do Usuário Limpo */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className={`p-2 rounded-xl transition-all border flex items-center justify-center shadow-sm shrink-0 active:scale-95 ${
+                theme === 'dark' 
+                  ? 'text-slate-300 hover:text-amber-300 hover:bg-slate-800/80 border-slate-800/60' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200/80'
+              }`}
+              title={`Alternar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
+            >
+              {theme === 'dark' ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} className="text-slate-700" />}
+            </button>
+
+            <div 
+              onClick={() => setActiveTab('MeuEmpenho')}
+              className={`flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl border transition-all cursor-pointer group shadow-sm shrink-0 active:scale-95 ${
+                theme === 'dark' 
+                  ? 'bg-slate-900/60 hover:bg-slate-800/80 border-slate-800/80' 
+                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+              }`}
+              title="Acessar Meu Empenho"
+            >
+              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-xs font-black text-white shadow-sm ring-1 ring-blue-400/30 group-hover:scale-105 transition-transform">
+                {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'FA'}
+              </div>
+              <span className={`hidden md:inline-block text-xs font-bold ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>
+                {currentUser?.name || 'Colaborador'}
+              </span>
             </div>
           </div>
         </header>
 
         {/* Área de Conteúdo Dinâmica */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" onScroll={handleContentScroll}>
           <AnimatePresence mode="wait">
             {activeTab === 'Home' ? (
               <HomeView 
@@ -2014,95 +2077,6 @@ const HomeView: React.FC<{
           </div>
         </div>
       </section>
-
-      {/* Destaques Práticos / Aulas Populares */}
-      {featuredCourses.length > 0 && (
-        <section className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0F172A] border-slate-800' : 'bg-white border-slate-200'}`}>
-          <div className="max-w-7xl mx-auto w-full">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
-              <div>
-                <span className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  Primeiros Passos
-                </span>
-                <h2 className={`font-display text-2xl sm:text-3xl font-extrabold mt-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                  Procedimentos Recomendados
-                </h2>
-                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Comece praticando as aulas mais solicitadas do setor financeiro.
-                </p>
-              </div>
-
-              <button 
-                onClick={() => onNavigate('Todos')}
-                className="inline-flex items-center gap-2 text-sm font-bold text-[#3B82F6] hover:text-[#2563EB] transition-colors group"
-              >
-                <span>Ver todos os 25 procedimentos</span>
-                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredCourses.map((course) => {
-                const isCompleted = completedCourses.includes(course.id);
-                return (
-                  <div 
-                    key={course.id}
-                    className={`group rounded-2xl border p-5 flex flex-col justify-between transition-all duration-300 ${
-                      theme === 'dark' 
-                        ? 'bg-slate-800/60 border-slate-700/80 hover:border-blue-500/50 hover:bg-slate-800' 
-                        : 'bg-slate-50 border-slate-200/90 hover:bg-white hover:border-blue-300 hover:shadow-lg'
-                    }`}
-                  >
-                    <div>
-                      <div className="relative aspect-video rounded-xl overflow-hidden mb-4 border border-slate-200 dark:border-slate-700">
-                        <img 
-                          src={course.thumbnail} 
-                          alt={course.title} 
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="absolute top-2 left-2">
-                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase text-white shadow-md ${
-                            course.system === '7Edu' ? 'bg-indigo-600' : 'bg-emerald-600'
-                          }`}>
-                            {course.system}
-                          </span>
-                        </div>
-                        {isCompleted && (
-                          <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
-                            <CheckCircle2 size={16} />
-                          </div>
-                        )}
-                      </div>
-
-                      <h3 className={`font-display text-base font-bold line-clamp-1 mb-1 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                        {course.title}
-                      </h3>
-                      <p className={`text-xs line-clamp-2 mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                        {course.description || "Procedimento operacional padrão com instruções em vídeo e passo a passo em PDF."}
-                      </p>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-                        <Clock size={14} /> {course.duration}
-                      </span>
-
-                      <button 
-                        onClick={() => onOpenMedia && onOpenMedia(course, 'video')}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs font-bold transition-all shadow-sm active:scale-95"
-                      >
-                        <Play size={14} fill="currentColor" />
-                        <span>{isCompleted ? 'Reassistir' : 'Iniciar'}</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
     </motion.div>
   );
 };
@@ -4116,14 +4090,29 @@ const MediaModal: React.FC<{
                 </div>
               )}
               
-              <button 
-                onClick={onClose} 
-                className="p-2 sm:p-2.5 rounded-full hover:bg-slate-100 text-slate-600 transition-colors shrink-0 ml-auto md:ml-0"
-                aria-label="Fechar"
-              >
-                <X size={20} className="sm:hidden" />
-                <X size={22} className="hidden sm:block" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
+                <button
+                  onClick={() => course && onToggleComplete?.(course.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all border active:scale-95 shadow-sm ${
+                    isCompleted
+                      ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/25'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                  }`}
+                  title={isCompleted ? "Aula marcada como concluída! Clique para alterar" : "Clique para registrar conclusão desta aula"}
+                >
+                  <CheckCircle2 size={16} className={isCompleted ? "text-emerald-500" : "text-white"} />
+                  <span className="hidden sm:inline">{isCompleted ? 'Concluída ✓' : 'Marcar Concluída'}</span>
+                </button>
+
+                <button 
+                  onClick={onClose} 
+                  className="p-2 sm:p-2.5 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors shrink-0 border border-slate-200/80"
+                  aria-label="Fechar"
+                >
+                  <X size={20} className="sm:hidden" />
+                  <X size={22} className="hidden sm:block" />
+                </button>
+              </div>
             </div>
 
             {/* Selector de Abas em Destaque (RESPONSIVO E ADAPTADO AO MOBILE) */}
