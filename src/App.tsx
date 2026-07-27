@@ -1139,12 +1139,6 @@ export default function App() {
               }
               onClick={() => { setActiveTab('Certificados'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
-            <SidebarItem 
-              icon={<Sparkles size={20} className="text-blue-500 animate-pulse" />} 
-              label="Análise IA Gemini" 
-              active={activeTab === 'GeminiVideo'} 
-              onClick={() => { setActiveTab('GeminiVideo'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
-            />
             
             <div className="pt-4 pb-2">
               <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sistemas</p>
@@ -1257,7 +1251,7 @@ export default function App() {
           </button>
 
           <div className="flex flex-1 items-center justify-center px-4 lg:justify-start lg:px-0">
-            {activeTab !== 'Home' && activeTab !== 'GeminiVideo' && (
+            {activeTab !== 'Home' && (
               <div className="relative w-full max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
@@ -1286,7 +1280,17 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
             {activeTab === 'Home' ? (
-              <HomeView key="home" onNavigate={(tab) => setActiveTab(tab)} theme={theme} />
+              <HomeView 
+                key="home" 
+                onNavigate={(tab) => setActiveTab(tab)} 
+                theme={theme}
+                courses={courses}
+                completedCourses={completedCourses}
+                onOpenMedia={(course, type) => {
+                  setSelectedCourse(course);
+                  setModalType(type);
+                }}
+              />
             ) : activeTab === 'MeuEmpenho' ? (
               <UserDashboard 
                 key="meu-empenho"
@@ -1321,8 +1325,6 @@ export default function App() {
                 onResetProgress={handleResetProgressAndCertificates}
                 theme={theme}
               />
-            ) : activeTab === 'GeminiVideo' ? (
-              <GeminiVideoUploader key="gemini-video" theme={theme} />
             ) : activeTab === 'Admin' ? (
               <AdminView 
                 key="admin" 
@@ -1680,83 +1682,294 @@ export default function App() {
 
 // --- Subcomponentes ---
 
-const HomeView: React.FC<{ onNavigate: (tab: TabType) => void, theme: 'light' | 'dark' }> = ({ onNavigate, theme }) => {
+const HomeView: React.FC<{ 
+  onNavigate: (tab: TabType) => void, 
+  theme: 'light' | 'dark',
+  courses?: Course[],
+  completedCourses?: string[],
+  onOpenMedia?: (course: Course, type: 'video' | 'pdf') => void
+}> = ({ onNavigate, theme, courses = [], completedCourses = [], onOpenMedia }) => {
+  const count7Edu = courses.filter(c => c.system === '7Edu').length || 10;
+  const countTotvs = courses.filter(c => c.system === 'TOTVS').length || 16;
+
+  const completed7Edu = courses.filter(c => c.system === '7Edu' && completedCourses.includes(c.id)).length;
+  const completedTotvs = courses.filter(c => c.system === 'TOTVS' && completedCourses.includes(c.id)).length;
+
+  const percent7Edu = Math.round((completed7Edu / count7Edu) * 100) || 0;
+  const percentTotvs = Math.round((completedTotvs / countTotvs) * 100) || 0;
+
+  const featuredCourses = courses.slice(0, 3);
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="flex flex-col"
+      className="flex flex-col min-h-screen"
     >
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-[#0F172A] py-20 px-4 lg:px-8 text-white">
-        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 opacity-10">
-          <GraduationCap size={600} />
-        </div>
+      {/* Hero Section Moderno */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#0B0F19] via-[#0F172A] to-[#1E293B] py-16 lg:py-24 px-4 lg:px-8 text-white border-b border-slate-800/80">
+        {/* Animated Background Mesh Grid */}
+        <div 
+          className="absolute inset-0 opacity-[0.07] pointer-events-none"
+          style={{
+            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)`,
+            backgroundSize: '32px 32px'
+          }}
+        />
+
+        {/* Glows de fundo decorativos animados */}
+        <motion.div 
+          animate={{
+            scale: [1, 1.25, 0.95, 1],
+            x: ['-50%', '-45%', '-55%', '-50%'],
+            y: ['-50%', '-60%', '-40%', '-50%'],
+            opacity: [0.22, 0.38, 0.2, 0.22]
+          }}
+          transition={{
+            duration: 12,
+            repeat: Infinity,
+            ease: 'easeInOut'
+          }}
+          className="absolute top-1/3 left-1/2 w-[700px] h-[450px] bg-gradient-to-r from-blue-600 to-indigo-600 blur-[140px] rounded-full pointer-events-none"
+        />
+
+        <motion.div 
+          animate={{
+            scale: [1, 1.35, 0.9, 1],
+            x: [0, 50, -30, 0],
+            y: [0, -40, 25, 0],
+            opacity: [0.18, 0.35, 0.15, 0.18]
+          }}
+          transition={{
+            duration: 16,
+            repeat: Infinity,
+            ease: 'easeInOut'
+          }}
+          className="absolute bottom-0 right-10 w-[500px] h-[320px] bg-indigo-500/30 blur-[120px] rounded-full pointer-events-none"
+        />
+
+        <motion.div 
+          animate={{
+            scale: [0.9, 1.3, 0.95, 0.9],
+            x: [0, -40, 30, 0],
+            y: [0, 30, -25, 0],
+            opacity: [0.12, 0.28, 0.12, 0.12]
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            ease: 'easeInOut'
+          }}
+          className="absolute bottom-10 left-10 w-[420px] h-[280px] bg-sky-500/20 blur-[110px] rounded-full pointer-events-none"
+        />
+
+        {/* Floating Particles & Sparkles */}
+        <motion.div 
+          animate={{
+            y: [0, -15, 0],
+            opacity: [0.3, 0.8, 0.3],
+            scale: [0.9, 1.1, 0.9]
+          }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-16 left-[12%] text-blue-400/60 pointer-events-none hidden md:block"
+        >
+          <Sparkles size={28} />
+        </motion.div>
+
+        <motion.div 
+          animate={{
+            y: [0, 18, 0],
+            rotate: [0, 10, -5, 0],
+            opacity: [0.2, 0.6, 0.2]
+          }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          className="absolute top-28 right-[15%] text-indigo-400/50 pointer-events-none hidden md:block"
+        >
+          <Trophy size={32} />
+        </motion.div>
+
+        <motion.div 
+          animate={{
+            y: [0, -20, 0],
+            x: [0, 10, 0],
+            opacity: [0.2, 0.7, 0.2]
+          }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+          className="absolute bottom-20 left-[18%] text-amber-400/50 pointer-events-none hidden md:block"
+        >
+          <Award size={30} />
+        </motion.div>
+
+        <motion.div 
+          animate={{
+            y: [0, 14, 0],
+            opacity: [0.25, 0.75, 0.25]
+          }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
+          className="absolute bottom-24 right-[20%] text-emerald-400/50 pointer-events-none hidden md:block"
+        >
+          <BookOpen size={28} />
+        </motion.div>
+
+        {/* Animated Graduation Cap Icon in background */}
+        <motion.div 
+          animate={{
+            y: [0, -22, 0, 15, 0],
+            rotate: [0, 3, -2, 1, 0],
+            scale: [1, 1.04, 0.97, 1],
+            opacity: [0.06, 0.1, 0.05, 0.06]
+          }}
+          transition={{
+            duration: 14,
+            repeat: Infinity,
+            ease: 'easeInOut'
+          }}
+          className="absolute -top-10 right-0 pointer-events-none text-blue-300"
+        >
+          <GraduationCap size={580} />
+        </motion.div>
         
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
+        <div className="relative z-10 max-w-5xl mx-auto text-center">
           <motion.div
-            initial={{ y: 20, opacity: 0 }}
+            initial={{ y: 25, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
           >
-            <span className="inline-block rounded-full bg-[#3B82F6]/20 px-4 py-1 text-sm font-semibold text-[#3B82F6] mb-6">
-              Bem-vindo à FapAcademy
-            </span>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-6 leading-tight">
-              Domine os Sistemas <span className="text-[#3B82F6]">7Edu</span> & <span className="text-[#3B82F6]">TOTVS</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-1.5 text-xs font-bold text-blue-300 backdrop-blur-md mb-6 shadow-sm">
+              <Sparkles size={14} className="text-blue-400 animate-spin" style={{ animationDuration: '4s' }} />
+              <span>Plataforma Oficial FapAcademy</span>
+            </div>
+
+            <h1 className="font-display text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-[1.15]">
+              Capacitação de Excelência nos Sistemas{' '}
+              <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">
+                7Edu &amp; TOTVS
+              </span>
             </h1>
-            <p className="text-lg lg:text-xl text-slate-400 mb-10 max-w-2xl mx-auto">
-              A plataforma de treinamento interno para o setor Financeiro e Central de Relacionamentos. 
-              Aprenda procedimentos, conclua trilhas e eleve sua produtividade.
+
+            <p className="text-base sm:text-lg lg:text-xl text-slate-300/90 mb-10 max-w-3xl mx-auto leading-relaxed font-medium">
+              Sua jornada de aprendizado corporativo para os setores de Finanças e Atendimento. 
+              Aprenda procedimentos operacionais padrão, assista aos guias em vídeo e obtenha suas certificações institucionais.
             </p>
-            <button 
-              onClick={() => {
-                document.getElementById('system-selection')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="group flex items-center gap-2 mx-auto rounded-full bg-[#3B82F6] px-8 py-4 text-lg font-bold text-white hover:bg-[#2563EB] transition-all shadow-xl shadow-[#3B82F6]/30 active:scale-95"
-            >
-              Começar Treinamento
-              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-            </button>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button 
+                onClick={() => {
+                  document.getElementById('system-selection')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="group w-full sm:w-auto flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-4 text-base font-extrabold text-white hover:from-blue-500 hover:to-indigo-500 transition-all shadow-xl shadow-blue-600/30 active:scale-95 border border-blue-400/30"
+              >
+                <span>Escolher Sistema</span>
+                <ArrowRight size={20} className="group-hover:translate-x-1.5 transition-transform" />
+              </button>
+
+              <button 
+                onClick={() => onNavigate('MeuEmpenho')}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-2xl bg-slate-800/80 hover:bg-slate-800 px-7 py-4 text-base font-bold text-slate-200 hover:text-white transition-all border border-slate-700/80 backdrop-blur-md active:scale-95"
+              >
+                <BarChart2 size={18} className="text-emerald-400" />
+                <span>Acompanhar Meu Empenho</span>
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Cards de Métricas em Destaque no Hero */}
+          <motion.div 
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.25 }}
+            className="mt-14 grid grid-cols-2 lg:grid-cols-4 gap-4 text-left max-w-4xl mx-auto"
+          >
+            <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 backdrop-blur-md">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400">
+                  <BookOpen size={18} />
+                </div>
+                <span className="font-display text-xl font-bold text-white">25 Aulas</span>
+              </div>
+              <p className="text-xs text-slate-400 font-medium">Procedimentos cadastrados</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 backdrop-blur-md">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
+                  <Zap size={18} />
+                </div>
+                <span className="font-display text-xl font-bold text-white">2 Sistemas</span>
+              </div>
+              <p className="text-xs text-slate-400 font-medium">7Edu e TOTVS integrados</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 backdrop-blur-md">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+                  <Award size={18} />
+                </div>
+                <span className="font-display text-xl font-bold text-white">3 Diplomas</span>
+              </div>
+              <p className="text-xs text-slate-400 font-medium">Certificados emitíveis</p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 backdrop-blur-md">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
+                  <FileText size={18} />
+                </div>
+                <span className="font-display text-xl font-bold text-white">100% On-line</span>
+              </div>
+              <p className="text-xs text-slate-400 font-medium">PDFs e Vídeos em HD</p>
+            </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="py-20 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+      {/* Grid de Recursos / Diferenciais */}
+      <section className="py-16 px-4 lg:px-8 max-w-7xl mx-auto w-full">
+        <div className="text-center max-w-2xl mx-auto mb-12">
+          <span className="text-xs font-black uppercase tracking-widest text-[#3B82F6] bg-blue-50 dark:bg-blue-950/60 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800">
+            Recursos da Plataforma
+          </span>
+          <h2 className={`font-display text-2xl sm:text-3xl font-extrabold mt-3 mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+            Tudo o que você precisa para aprender com eficiência
+          </h2>
+          <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+            Ferramentas desenhadas para simplificar seu aprendizado diário no trabalho.
+          </p>
+        </div>
+
         <motion.div 
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
           variants={{
-            visible: { transition: { staggerChildren: 0.1 } }
+            visible: { transition: { staggerChildren: 0.12 } }
           }}
           className="grid grid-cols-1 md:grid-cols-3 gap-8"
         >
           <FeatureCard 
             icon={<Zap className="text-amber-500" />}
-            title="Acesso Rápido"
-            description="Encontre qualquer procedimento em segundos com nossa busca inteligente."
+            title="Acesso Agilizado"
+            description="Localize qualquer procedimento operacional em poucos segundos utilizando a busca integrada."
             theme={theme}
           />
           <FeatureCard 
             icon={<Trophy className="text-[#3B82F6]" />}
-            title="Acompanhe o Progresso"
-            description="Marque aulas concluídas e visualize sua evolução em tempo real."
+            title="Evolução &amp; Certificados"
+            description="Acompanhe o percentual das suas aulas concluídas e libere seus certificados oficiais ao atingir 100%."
             theme={theme}
           />
           <FeatureCard 
-            icon={<Users className="text-emerald-500" />}
-            title="Foco Corporativo"
-            description="Conteúdo especializado nos sistemas 7Edu e TOTVS para o dia a dia."
+            icon={<FileText className="text-emerald-500" />}
+            title="Passo a Passo em PDF"
+            description="Consulte materiais de apoio e manuais detalhados para baixar e consultar a qualquer momento."
             theme={theme}
           />
         </motion.div>
       </section>
 
-      {/* Quick Access Systems */}
-      <section id="system-selection" className={`py-20 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0B0F19] border-slate-900' : 'bg-white border-slate-200'}`}>
+      {/* Seção de Escolha de Sistemas */}
+      <section id="system-selection" className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0B0F19] border-slate-800' : 'bg-slate-100/70 border-slate-200/80'}`}>
         <div className="max-w-7xl mx-auto w-full">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -1764,26 +1977,132 @@ const HomeView: React.FC<{ onNavigate: (tab: TabType) => void, theme: 'light' | 
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className={`text-3xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Escolha seu Sistema</h2>
-            <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}>Selecione a área de estudo que deseja focar hoje.</p>
+            <span className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">
+              Trilhas de Aprendizado
+            </span>
+            <h2 className={`font-display text-3xl font-black mt-3 mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Selecione o Sistema para Estudar
+            </h2>
+            <p className={`text-base max-w-xl mx-auto ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              Navegue pelos módulos práticos dos sistemas operacionais da Faculdade Adventista do Paraná.
+            </p>
           </motion.div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             <SystemCard 
-              title="7Edu" 
-              color="bg-indigo-600" 
-              description="Gestão acadêmica e financeira educacional."
+              title="SISTEMA 7EDU" 
+              subtitle="Gestão Acadêmica e Financeira Educacional"
+              badgeText={`${count7Edu} Procedimentos`}
+              progressPercent={percent7Edu}
+              color="from-indigo-700 via-indigo-800 to-slate-900" 
+              borderColor="border-indigo-500/40"
+              icon={<BookOpen size={28} className="text-indigo-300" />}
+              description="Aprenda sobre lançamento de desconto condicional, alterações de boletos, contratos, bolsas dissídio e procedimentos da rotina 7Edu."
               onClick={() => onNavigate('7Edu')}
             />
             <SystemCard 
-              title="TOTVS" 
-              color="bg-emerald-600" 
-              description="ERP completo para gestão empresarial e contábil."
+              title="SISTEMA TOTVS" 
+              subtitle="ERP Completo de Gestão Empresarial"
+              badgeText={`${countTotvs} Procedimentos`}
+              progressPercent={percentTotvs}
+              color="from-emerald-700 via-emerald-800 to-slate-900" 
+              borderColor="border-emerald-500/40"
+              icon={<Settings size={28} className="text-emerald-300" />}
+              description="Domine baixas de boletos, devoluções de cheque, boletos com PIX, relatórios contábeis e negociações avançadas no TOTVS."
               onClick={() => onNavigate('TOTVS')}
             />
           </div>
         </div>
       </section>
+
+      {/* Destaques Práticos / Aulas Populares */}
+      {featuredCourses.length > 0 && (
+        <section className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0F172A] border-slate-800' : 'bg-white border-slate-200'}`}>
+          <div className="max-w-7xl mx-auto w-full">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
+              <div>
+                <span className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  Primeiros Passos
+                </span>
+                <h2 className={`font-display text-2xl sm:text-3xl font-extrabold mt-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  Procedimentos Recomendados
+                </h2>
+                <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Comece praticando as aulas mais solicitadas do setor financeiro.
+                </p>
+              </div>
+
+              <button 
+                onClick={() => onNavigate('Todos')}
+                className="inline-flex items-center gap-2 text-sm font-bold text-[#3B82F6] hover:text-[#2563EB] transition-colors group"
+              >
+                <span>Ver todos os 25 procedimentos</span>
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredCourses.map((course) => {
+                const isCompleted = completedCourses.includes(course.id);
+                return (
+                  <div 
+                    key={course.id}
+                    className={`group rounded-2xl border p-5 flex flex-col justify-between transition-all duration-300 ${
+                      theme === 'dark' 
+                        ? 'bg-slate-800/60 border-slate-700/80 hover:border-blue-500/50 hover:bg-slate-800' 
+                        : 'bg-slate-50 border-slate-200/90 hover:bg-white hover:border-blue-300 hover:shadow-lg'
+                    }`}
+                  >
+                    <div>
+                      <div className="relative aspect-video rounded-xl overflow-hidden mb-4 border border-slate-200 dark:border-slate-700">
+                        <img 
+                          src={course.thumbnail} 
+                          alt={course.title} 
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute top-2 left-2">
+                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase text-white shadow-md ${
+                            course.system === '7Edu' ? 'bg-indigo-600' : 'bg-emerald-600'
+                          }`}>
+                            {course.system}
+                          </span>
+                        </div>
+                        {isCompleted && (
+                          <div className="absolute top-2 right-2 bg-emerald-500 text-white p-1 rounded-full shadow-md">
+                            <CheckCircle2 size={16} />
+                          </div>
+                        )}
+                      </div>
+
+                      <h3 className={`font-display text-base font-bold line-clamp-1 mb-1 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {course.title}
+                      </h3>
+                      <p className={`text-xs line-clamp-2 mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        {course.description || "Procedimento operacional padrão com instruções em vídeo e passo a passo em PDF."}
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+                        <Clock size={14} /> {course.duration}
+                      </span>
+
+                      <button 
+                        onClick={() => onOpenMedia && onOpenMedia(course, 'video')}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] text-white text-xs font-bold transition-all shadow-sm active:scale-95"
+                      >
+                        <Play size={14} fill="currentColor" />
+                        <span>{isCompleted ? 'Reassistir' : 'Iniciar'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </motion.div>
   );
 };
@@ -1794,33 +2113,73 @@ const FeatureCard: React.FC<{ icon: React.ReactNode, title: string, description:
       hidden: { opacity: 0, y: 20 },
       visible: { opacity: 1, y: 0 }
     }}
-    whileHover={{ scale: 1.05, y: -5 }}
-    transition={{ type: "spring", stiffness: 300 }}
-    className={`p-8 rounded-2xl border transition-colors duration-300 shadow-sm cursor-default ${
+    whileHover={{ y: -6 }}
+    transition={{ type: "spring", stiffness: 260, damping: 20 }}
+    className={`p-8 rounded-3xl border transition-all duration-300 cursor-default flex flex-col justify-between ${
       theme === 'dark' 
-        ? 'bg-[#131B2E] border-slate-800 text-white shadow-black/20' 
-        : 'bg-white border-slate-200 hover:shadow-xl'
+        ? 'bg-[#131B2E] border-slate-800 text-white shadow-black/20 hover:border-slate-700 hover:shadow-2xl' 
+        : 'bg-white border-slate-200/90 text-slate-900 hover:shadow-xl hover:border-blue-200'
     }`}
   >
-    <div className={`h-12 w-12 rounded-xl flex items-center justify-center mb-6 transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-50'}`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 28 })}
+    <div>
+      <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-6 border transition-colors ${
+        theme === 'dark' ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-100 border-slate-200/80'
+      }`}>
+        {React.cloneElement(icon as React.ReactElement, { size: 28 })}
+      </div>
+      <h3 className={`font-display text-xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+        {title}
+      </h3>
+      <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+        {description}
+      </p>
     </div>
-    <h3 className={`text-xl font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
-    <p className={`leading-relaxed ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{description}</p>
   </motion.div>
 );
 
-const SystemCard: React.FC<{ title: string, color: string, description: string, onClick: () => void }> = ({ title, color, description, onClick }) => (
+const SystemCard: React.FC<{ 
+  title: string, 
+  subtitle: string,
+  badgeText: string,
+  progressPercent: number,
+  color: string, 
+  borderColor: string,
+  icon: React.ReactNode,
+  description: string, 
+  onClick: () => void 
+}> = ({ title, subtitle, badgeText, progressPercent, color, borderColor, icon, description, onClick }) => (
   <button 
     onClick={onClick}
-    className="group relative overflow-hidden rounded-2xl p-8 text-left transition-all hover:-translate-y-1 hover:shadow-2xl active:scale-95"
+    className={`group relative overflow-hidden rounded-3xl border ${borderColor} p-8 text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl active:scale-98 flex flex-col justify-between bg-gradient-to-br ${color} text-white shadow-xl`}
   >
-    <div className={`absolute inset-0 ${color} opacity-90 group-hover:opacity-100 transition-opacity`} />
-    <div className="relative z-10 text-white">
-      <h3 className="text-3xl font-bold mb-2">{title}</h3>
-      <p className="text-white/80 mb-6">{description}</p>
-      <div className="flex items-center gap-2 text-sm font-bold">
-        Explorar Trilhas <ArrowRight size={16} />
+    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+      {React.cloneElement(icon as React.ReactElement, { size: 160 })}
+    </div>
+
+    <div className="relative z-10">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="p-3 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20">
+          {icon}
+        </div>
+        <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-white/20 backdrop-blur-md border border-white/25 text-white">
+          {badgeText}
+        </span>
+      </div>
+
+      <h3 className="font-display text-2xl font-black mb-1 tracking-wide">{title}</h3>
+      <p className="text-xs font-semibold text-white/80 mb-4">{subtitle}</p>
+      <p className="text-sm text-white/85 leading-relaxed mb-6 font-normal max-w-md">{description}</p>
+    </div>
+
+    <div className="relative z-10 pt-4 border-t border-white/15 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-white/90">Seu Progresso:</span>
+        <span className="text-xs font-black text-white">{progressPercent}%</span>
+      </div>
+
+      <div className="inline-flex items-center gap-2 text-sm font-extrabold bg-white text-slate-900 px-4 py-2 rounded-xl group-hover:bg-blue-50 transition-colors shadow-md">
+        <span>Acessar Trilha</span>
+        <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
       </div>
     </div>
   </button>
