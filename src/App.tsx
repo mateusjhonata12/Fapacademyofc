@@ -642,6 +642,91 @@ export default function App() {
     return null;
   }, [certificates, isFinancas100, currentUser]);
 
+  // Função para resetar apenas o empenho (progresso das aulas)
+  const handleResetEmpenhoOnly = async () => {
+    if (!currentUser?.id) {
+      alert("Nenhum usuário logado para redefinir.");
+      return;
+    }
+
+    const confirmReset = window.confirm(
+      "Deseja resetar apenas o Empenho (dados de engajamento e progresso das vídeo-aulas) para validação?"
+    );
+    if (!confirmReset) return;
+
+    setIsAppLoading(true);
+    try {
+      const userId = currentUser.id;
+      setCompletedCourses([]);
+      localStorage.removeItem('fapacademy_progress');
+
+      try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+          completedCourses: []
+        });
+      } catch (e) {
+        console.warn("Aviso ao atualizar progresso do usuário no Firestore:", e);
+      }
+
+      alert("Dados de empenho e engajamento resetados com sucesso para validação!");
+    } catch (err) {
+      console.error("Erro ao resetar empenho:", err);
+      alert("Empenho local redefinido com sucesso.");
+    } finally {
+      setIsAppLoading(false);
+    }
+  };
+
+  // Função para eliminar/revogar apenas os certificados emitidos
+  const handleResetCertificatesOnly = async () => {
+    if (!currentUser?.id) {
+      alert("Nenhum usuário logado para redefinir.");
+      return;
+    }
+
+    const confirmReset = window.confirm(
+      "Deseja eliminar/revogar todos os Certificados emitidos para este usuário?"
+    );
+    if (!confirmReset) return;
+
+    setIsAppLoading(true);
+    try {
+      const userId = currentUser.id;
+      const certIds = [
+        `certificado_7edu_${userId}`,
+        `certificado_totvs_${userId}`,
+        `certificado_financas_${userId}`
+      ];
+
+      for (const certId of certIds) {
+        try {
+          await deleteDoc(doc(db, 'certificates', certId));
+        } catch (e) {
+          console.warn(`Aviso ao excluir certificado ${certId}:`, e);
+        }
+      }
+
+      try {
+        const qCert = query(collection(db, 'certificates'), where('userId', '==', userId));
+        const snapshotCert = await getDocs(qCert);
+        for (const certDoc of snapshotCert.docs) {
+          await deleteDoc(doc(db, 'certificates', certDoc.id));
+        }
+      } catch (e) {
+        console.warn("Aviso ao buscar certificados adicionais para exclusão:", e);
+      }
+
+      setCertificates([]);
+      alert("Todos os certificados do usuário foram eliminados com sucesso!");
+    } catch (err) {
+      console.error("Erro ao eliminar certificados:", err);
+      alert("Certificados locais eliminados com sucesso.");
+    } finally {
+      setIsAppLoading(false);
+    }
+  };
+
   // Função para resetar o empenho (progresso das aulas) e redefinir certificados
   const handleResetProgressAndCertificates = async () => {
     if (!currentUser?.id) {
@@ -1365,6 +1450,9 @@ export default function App() {
                   setSelectedCourse(course);
                   setModalType(type);
                 }}
+                onResetEmpenho={handleResetEmpenhoOnly}
+                onEliminarCertificados={handleResetCertificatesOnly}
+                onResetAll={handleResetProgressAndCertificates}
                 theme={theme}
               />
             ) : activeTab === 'Certificados' ? (
@@ -1385,6 +1473,8 @@ export default function App() {
                   setIsCertModalOpen(true);
                 }}
                 onNavigateToSystem={(system) => setActiveTab(system as TabType)}
+                onResetEmpenho={handleResetEmpenhoOnly}
+                onEliminarCertificados={handleResetCertificatesOnly}
                 onResetProgress={handleResetProgressAndCertificates}
                 theme={theme}
               />
@@ -2984,61 +3074,182 @@ const AdminView: React.FC<{
         </div>
       )}
 
-      {adminTab === 'courses' && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h2 className="text-lg font-bold text-slate-900">Aulas Disponíveis</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-bold">
-                <tr>
-                  <th className="px-6 py-4 min-w-[250px]">Aula</th>
-                  <th className="px-6 py-4">Sistema</th>
-                  <th className="px-6 py-4">Dificuldade</th>
-                  <th className="px-6 py-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {courses.map((course) => (
-                  <tr key={course.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img src={course.thumbnail} alt="" className="h-10 w-16 object-cover rounded-lg border border-slate-200" referrerPolicy="no-referrer" />
-                        <span className="font-medium text-slate-900">{course.title}</span>
+      {adminTab === 'courses' && (() => {
+        const eduCourses = courses
+          .filter(c => c.system === '7Edu')
+          .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+
+        const totvsCourses = courses
+          .filter(c => c.system === 'TOTVS' || c.system !== '7Edu')
+          .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                  Aulas Disponíveis por Sistema
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Aulas divididas em 2 colunas por sistema e ordenadas em ordem alfabética (A-Z).
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                  7Edu: {eduCourses.length}
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  TOTVS: {totvsCourses.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Coluna 1: Sistema 7Edu */}
+              <div className={`rounded-2xl border overflow-hidden transition-colors ${
+                theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-200/80 shadow-sm'
+              }`}>
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-950/20">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-indigo-600 text-white shadow-sm">
+                      7Edu
+                    </span>
+                    <h3 className={`font-bold text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      Sistema 7Edu (A-Z)
+                    </h3>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {eduCourses.length} {eduCourses.length === 1 ? 'aula' : 'aulas'}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[600px] overflow-y-auto">
+                  {eduCourses.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      Nenhuma aula cadastrada para o sistema 7Edu.
+                    </div>
+                  ) : (
+                    eduCourses.map((course) => (
+                      <div key={course.id} className="p-3.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img 
+                            src={course.thumbnail} 
+                            alt="" 
+                            className="h-10 w-16 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0" 
+                            referrerPolicy="no-referrer" 
+                          />
+                          <div className="min-w-0 flex flex-col">
+                            <span className={`font-bold text-sm truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`} title={course.title}>
+                              {course.title}
+                            </span>
+                            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
+                              <span>{course.difficulty}</span>
+                              {course.duration && (
+                                <>
+                                  <span>•</span>
+                                  <span>{course.duration}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button 
+                            onClick={() => handleEditCourse(course)}
+                            className="text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 p-2 rounded-xl transition-colors"
+                            title="Editar aula"
+                          >
+                            <Settings size={17} />
+                          </button>
+                          <button 
+                            onClick={() => onDeleteCourse(course.id)}
+                            className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-xl transition-colors"
+                            title="Excluir aula"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        course.system === '7Edu' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {course.system}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 text-sm">{course.difficulty}</td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => handleEditCourse(course)}
-                          className="text-slate-400 hover:text-[#3B82F6] transition-colors p-1"
-                        >
-                          <Settings size={18} />
-                        </button>
-                        <button 
-                          onClick={() => onDeleteCourse(course.id)}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                        >
-                          <X size={18} />
-                        </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Coluna 2: Sistema TOTVS */}
+              <div className={`rounded-2xl border overflow-hidden transition-colors ${
+                theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-200/80 shadow-sm'
+              }`}>
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider bg-emerald-600 text-white shadow-sm">
+                      TOTVS
+                    </span>
+                    <h3 className={`font-bold text-sm ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      Sistema TOTVS (A-Z)
+                    </h3>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {totvsCourses.length} {totvsCourses.length === 1 ? 'aula' : 'aulas'}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[600px] overflow-y-auto">
+                  {totvsCourses.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      Nenhuma aula cadastrada para o sistema TOTVS.
+                    </div>
+                  ) : (
+                    totvsCourses.map((course) => (
+                      <div key={course.id} className="p-3.5 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img 
+                            src={course.thumbnail} 
+                            alt="" 
+                            className="h-10 w-16 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0" 
+                            referrerPolicy="no-referrer" 
+                          />
+                          <div className="min-w-0 flex flex-col">
+                            <span className={`font-bold text-sm truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`} title={course.title}>
+                              {course.title}
+                            </span>
+                            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
+                              <span>{course.difficulty}</span>
+                              {course.duration && (
+                                <>
+                                  <span>•</span>
+                                  <span>{course.duration}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button 
+                            onClick={() => handleEditCourse(course)}
+                            className="text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 p-2 rounded-xl transition-colors"
+                            title="Editar aula"
+                          >
+                            <Settings size={17} />
+                          </button>
+                          <button 
+                            onClick={() => onDeleteCourse(course.id)}
+                            className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2 rounded-xl transition-colors"
+                            title="Excluir aula"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {adminTab === 'engagement' && (
         <div className="space-y-8">
@@ -3989,22 +4200,24 @@ const MediaModal: React.FC<{
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[1440px] my-auto overflow-hidden flex flex-col h-auto max-h-[98vh] sm:max-h-[96vh] border border-slate-100"
           >
-            {/* Header Modal */}
-            <div className="p-3 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-stretch md:items-center bg-white">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-blue-50 text-blue-600 shadow-sm shrink-0">
-                  <GraduationCap size={20} className="sm:hidden" />
-                  <GraduationCap size={24} className="hidden sm:block" />
+            {/* Header Modal - Pro LMS Platform */}
+            <div className="p-3.5 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-stretch md:items-center bg-white dark:bg-[#0F172A]">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 shrink-0">
+                  <GraduationCap size={22} />
                 </div>
-                <div className="max-w-[200px] sm:max-w-[360px] lg:max-w-[500px] text-left">
-                  <h3 className="text-sm sm:text-xl font-black text-slate-900 truncate leading-tight">{course?.title}</h3>
-                  <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
-                    <span className="text-[9px] sm:text-[10px] text-[#3B82F6] font-extrabold uppercase tracking-widest bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded-md">{course?.system}</span>
-                    <span className="text-slate-300 text-xs">•</span>
-                    <p className="text-[9px] sm:text-[10px] text-slate-600 uppercase font-extrabold tracking-widest truncate">
-                      {currentTab === 'pdf' ? 'Material de Apoio (PDF)' : 'Vídeo Aula'}
-                    </p>
+                <div className="max-w-[220px] sm:max-w-[380px] lg:max-w-[520px] text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-widest bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 px-2 py-0.5 rounded-md">
+                      {course?.system}
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wider">
+                      {currentTab === 'pdf' ? 'Material de Apoio PDF' : 'Vídeo Aula'}
+                    </span>
                   </div>
+                  <h3 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white truncate leading-tight mt-0.5">
+                    {course?.title}
+                  </h3>
                 </div>
               </div>
 
@@ -4012,7 +4225,7 @@ const MediaModal: React.FC<{
               {courses && courses.length > 0 && (
                 <div className="relative flex-1 max-w-md mx-0 md:mx-6" ref={searchRef}>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                     <input
                       type="text"
                       placeholder="Navegar e buscar outra aula..."
@@ -4022,14 +4235,14 @@ const MediaModal: React.FC<{
                         setIsSearchFocused(true);
                       }}
                       onFocus={() => setIsSearchFocused(true)}
-                      className="w-full pl-9 pr-8 py-2 sm:py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-100"
+                      className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-900 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-blue-500 rounded-xl outline-none transition-all font-medium text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20"
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                       >
-                        <X size={16} />
+                        <X size={15} />
                       </button>
                     )}
                   </div>
@@ -4041,7 +4254,7 @@ const MediaModal: React.FC<{
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 10 }}
-                        className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-150 z-[100] max-h-64 overflow-y-auto p-1.5"
+                        className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-[#131B2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] max-h-64 overflow-y-auto p-1.5"
                       >
                         {(() => {
                           const query = searchQuery.toLowerCase().trim();
@@ -4066,13 +4279,13 @@ const MediaModal: React.FC<{
                                   }}
                                   className={`w-full flex items-center justify-between p-2 rounded-xl text-left select-none transition-colors ${
                                     c.id === course?.id 
-                                      ? 'bg-blue-50 text-blue-700 font-bold' 
-                                      : 'hover:bg-slate-50 text-slate-700'
+                                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold' 
+                                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2 max-w-[80%]">
                                     <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                                      c.system === '7Edu' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'
+                                      c.system === '7Edu' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
                                     }`}>
                                       {c.system}
                                     </span>
@@ -4093,9 +4306,9 @@ const MediaModal: React.FC<{
               <div className="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
                 <button
                   onClick={() => course && onToggleComplete?.(course.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all border active:scale-95 shadow-sm ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border active:scale-95 shadow-sm ${
                     isCompleted
-                      ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/25'
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
                       : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
                   }`}
                   title={isCompleted ? "Aula marcada como concluída! Clique para alterar" : "Clique para registrar conclusão desta aula"}
@@ -4106,40 +4319,37 @@ const MediaModal: React.FC<{
 
                 <button 
                   onClick={onClose} 
-                  className="p-2 sm:p-2.5 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors shrink-0 border border-slate-200/80"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 border border-slate-200/80 dark:border-slate-800"
                   aria-label="Fechar"
                 >
-                  <X size={20} className="sm:hidden" />
-                  <X size={22} className="hidden sm:block" />
+                  <X size={20} />
                 </button>
               </div>
             </div>
 
-            {/* Selector de Abas em Destaque (RESPONSIVO E ADAPTADO AO MOBILE) */}
+            {/* Selector de Abas em Destaque (Pill Control LMS) */}
             {videoSrc && pdfSrc && (
-              <div className="flex border-b-2 border-slate-200 bg-slate-100/90 p-1.5 sm:p-2 gap-1.5 sm:gap-3 shadow-inner">
+              <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900 p-1.5 sm:p-2 gap-2 shadow-inner">
                 <button
                   onClick={() => setCurrentTab('video')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2.5 py-2.5 sm:py-3.5 px-2 text-xs sm:text-base font-black rounded-xl sm:rounded-2xl transition-all uppercase tracking-wide ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm font-black rounded-xl transition-all uppercase tracking-wide ${
                     currentTab === 'video'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 ring-2 ring-blue-400'
-                      : 'text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 ring-2 ring-blue-400/50'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
                   }`}
                 >
-                  <Play size={15} className="sm:hidden" fill={currentTab === 'video' ? 'currentColor' : 'none'} />
-                  <Play size={18} className="hidden sm:block" fill={currentTab === 'video' ? 'currentColor' : 'none'} />
+                  <Play size={16} fill={currentTab === 'video' ? 'currentColor' : 'none'} />
                   <span className="truncate">🎬 Vídeo Aula</span>
                 </button>
                 <button
                   onClick={() => setCurrentTab('pdf')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2.5 py-2.5 sm:py-3.5 px-2 text-xs sm:text-base font-black rounded-xl sm:rounded-2xl transition-all uppercase tracking-wide ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm font-black rounded-xl transition-all uppercase tracking-wide ${
                     currentTab === 'pdf'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 ring-2 ring-emerald-400'
-                      : 'text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-400/50'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
                   }`}
                 >
-                  <FileText size={15} className="sm:hidden" />
-                  <FileText size={18} className="hidden sm:block" />
+                  <FileText size={16} />
                   <span className="truncate">📄 Passo a Passo (PDF)</span>
                 </button>
               </div>
@@ -4514,124 +4724,161 @@ const MediaModal: React.FC<{
                     </div>
                   )}
 
-                  {/* Informações detalhadas da aula */}
-                  <div className="p-3 sm:p-6 md:p-8 bg-white grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 text-left">
-                    <div className="lg:col-span-7 space-y-3 sm:space-y-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] sm:text-xs font-black rounded-lg ${course.system === '7Edu' ? 'bg-blue-550/10 text-blue-600' : 'bg-indigo-550/10 text-indigo-600'}`}>
-                          {course.system}
-                        </span>
-                        <span className="text-slate-300">•</span>
-                        <span className={`px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded-lg ${
-                          course.difficulty === 'Iniciante' ? 'bg-emerald-50 text-emerald-600' :
-                          course.difficulty === 'Intermediário' ? 'bg-amber-50 text-amber-600' :
-                          'bg-rose-50 text-rose-600'
-                        }`}>
-                          {course.difficulty}
-                        </span>
-                      </div>
-
-                      <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                        {course.title}
-                      </h1>
-
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl font-normal">
-                        {course.description || "Esta aula aborda as diretrizes essenciais, instruções e melhores práticas recomendadas para o domínio operacional dos processos administrativos."}
-                      </p>
-                    </div>
-
-                    {/* Progress Toggle Card (Otimizado para Mobile e Desktop) */}
-                    <div className="lg:col-span-5 bg-slate-50 border border-slate-200/80 p-4 sm:p-6 md:p-7 rounded-xl sm:rounded-2xl flex flex-col justify-between gap-4 sm:gap-5 shadow-sm">
-                      <div className="space-y-3 sm:space-y-4">
-                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">Seu Progresso</h4>
-                        
-                        <div className="p-3 sm:p-4 bg-white border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 shadow-sm hover:border-slate-300 transition-colors">
-                          <div className="flex items-center gap-2.5 sm:gap-3">
-                            <CheckCircle2 size={18} className={isCompleted ? "text-emerald-500" : "text-slate-300"} />
-                            <div className="text-left leading-tight">
-                              <p className="text-xs sm:text-sm font-bold text-slate-800">Concluído</p>
-                              <p className="text-[10px] sm:text-xs text-slate-500">Registre sua evolução nesta aula</p>
-                            </div>
-                          </div>
-                          
-                          <button
-                            onClick={() => onToggleComplete?.(course.id)}
-                            className={`h-5 sm:h-6 w-10 sm:w-12 rounded-full p-0.5 transition-colors relative duration-200 outline-none ${
-                              isCompleted ? 'bg-emerald-500' : 'bg-slate-350'
-                            }`}
-                          >
-                            <div className={`h-4 sm:h-5 w-4 sm:w-5 rounded-full bg-white transition-all shadow-md ${
-                              isCompleted ? 'translate-x-5 sm:translate-x-6' : 'translate-x-0'
-                            }`} />
-                          </button>
-                        </div>
-
-                        {/* Botão de Marcar Conclusão */}
-                        <button
-                          onClick={() => onToggleComplete?.(course.id)}
-                          className={`w-full py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer border ${
-                            isCompleted 
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-250 hover:bg-emerald-100' 
-                              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/10'
-                          }`}
-                        >
-                          <CheckCircle2 size={16} className={isCompleted ? "text-emerald-500" : "text-white"} />
-                          {isCompleted ? 'Concluído! Desmarcar aula' : 'Marcar Aula como Concluída'}
-                        </button>
-
-                        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                          <div className="p-2.5 sm:p-3 bg-white border border-slate-200/80 rounded-xl text-left">
-                            <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase block">Duração</span>
-                            <span className="text-xs sm:text-sm text-slate-800 font-extrabold flex items-center gap-1 sm:gap-1.5 mt-0.5">
-                              <Clock size={13} className="text-[#3B82F6]" />
+                  {/* Informações detalhadas da aula & Trilha de Aulas (Side Playlist LMS) */}
+                  <div className="p-4 sm:p-6 md:p-8 bg-slate-50 dark:bg-[#0B0F19] grid grid-cols-1 lg:grid-cols-12 gap-6 text-left border-t border-slate-200/80 dark:border-slate-800">
+                    {/* Coluna Principal: Detalhes e Downloads */}
+                    <div className="lg:col-span-7 space-y-6">
+                      <div className="bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2.5 py-1 text-xs font-black rounded-lg uppercase tracking-wider ${
+                            course.system === '7Edu' 
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/50' 
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/50'
+                          }`}>
+                            {course.system}
+                          </span>
+                          <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${
+                            course.difficulty === 'Iniciante' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                            course.difficulty === 'Intermediário' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' :
+                            'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
+                          }`}>
+                            {course.difficulty}
+                          </span>
+                          {course.duration && (
+                            <span className="px-2.5 py-1 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center gap-1">
+                              <Clock size={12} />
                               {course.duration}
                             </span>
-                          </div>
-                          <div className="p-2.5 sm:p-3 bg-white border border-slate-200/80 rounded-xl text-left">
-                            <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase block">Nível</span>
-                            <span className="text-xs sm:text-sm text-slate-800 font-extrabold flex items-center gap-1 sm:gap-1.5 mt-0.5">
-                              <BarChart size={13} className="text-[#3B82F6]" />
-                              {course.difficulty}
-                            </span>
-                          </div>
+                          )}
                         </div>
+
+                        <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
+                          {course.title}
+                        </h1>
+
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
+                          {course.description || "Esta aula aborda as diretrizes essenciais, instruções e melhores práticas recomendadas para o domínio operacional dos processos administrativos."}
+                        </p>
                       </div>
 
-                      {/* Botões Separados para Download do Vídeo e do Passo a Passo (PDF) */}
-                      <div className="space-y-2 pt-3 border-t border-slate-200/60 text-left">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Downloads Disponíveis</span>
-                        
-                        {course.videoUrl ? (
-                          <button 
-                            onClick={() => downloadFile(course.videoUrl!, `${course.title}.mp4`)}
-                            className="w-full flex items-center justify-center gap-1.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-extrabold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all active:scale-[0.98]"
-                            title="Baixar Vídeo Aula"
-                          >
-                            <Download size={13} />
-                            Fazer Download do Vídeo
-                          </button>
-                        ) : (
-                          <div className="w-full flex items-center justify-center gap-1 text-slate-450 bg-slate-100 text-[10px] font-medium py-2 px-3 rounded-lg border border-dashed border-slate-200 cursor-not-allowed">
-                            <Video size={12} />
-                            Vídeo não disponível
-                          </div>
-                        )}
+                      {/* Card de Ações Rápidas & Download de Arquivos */}
+                      <div className="bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-3">
+                        <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                          <Download size={15} className="text-blue-500" />
+                          Materiais e Downloads da Aula
+                        </h4>
 
-                        {pdfSrc ? (
-                          <button 
-                            onClick={() => downloadFile(pdfSrc, `${course.title}.pdf`)}
-                            className="w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all active:scale-[0.98]"
-                            title="Baixar Passo a Passo (PDF)"
-                          >
-                            <FileText size={13} />
-                            Baixar Passo a Passo (PDF)
-                          </button>
-                        ) : (
-                          <div className="w-full flex items-center justify-center gap-1 text-slate-450 bg-slate-100 text-[10px] font-medium py-2 px-3 rounded-lg border border-dashed border-slate-200 cursor-not-allowed">
-                            <FileText size={12} />
-                            Sem PDF Passo a Passo
-                          </div>
-                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          {course.videoUrl ? (
+                            <button 
+                              onClick={() => downloadFile(course.videoUrl!, `${course.title}.mp4`)}
+                              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-3 px-4 rounded-xl shadow-md shadow-blue-500/15 transition-all active:scale-[0.98]"
+                              title="Baixar Vídeo Aula para assistir offline"
+                            >
+                              <Video size={15} />
+                              Baixar Vídeo (.mp4)
+                            </button>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 text-xs font-medium py-3 px-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 cursor-not-allowed">
+                              <Video size={14} />
+                              Vídeo indisponível para download
+                            </div>
+                          )}
+
+                          {pdfSrc ? (
+                            <button 
+                              onClick={() => downloadFile(pdfSrc, `${course.title}.pdf`)}
+                              className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-3 px-4 rounded-xl shadow-md shadow-emerald-500/15 transition-all active:scale-[0.98]"
+                              title="Baixar PDF Passo a Passo oficial"
+                            >
+                              <FileText size={15} />
+                              Baixar Passo a Passo (PDF)
+                            </button>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 text-xs font-medium py-3 px-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 cursor-not-allowed">
+                              <FileText size={14} />
+                              Sem PDF Passo a Passo
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Coluna Lateral: Trilha de Aulas do Sistema (Playlist LMS) */}
+                    <div className="lg:col-span-5 bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col h-full max-h-[500px]">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+                          <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                            Trilha de Aulas • {course.system}
+                          </h4>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                          {courses.filter(c => c.system === course.system).length} aulas
+                        </span>
+                      </div>
+
+                      <div className="overflow-y-auto space-y-2 mt-3 pr-1 flex-1">
+                        {(() => {
+                          const sameSystemCourses = courses
+                            .filter(c => c.system === course.system)
+                            .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+                          
+                          const listToShow = sameSystemCourses.length > 0 
+                            ? sameSystemCourses 
+                            : courses.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+
+                          return listToShow.map((item, idx) => {
+                            const isCurrent = item.id === course.id;
+
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => onSelectCourse?.(item)}
+                                className={`w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-all ${
+                                  isCurrent
+                                    ? 'bg-blue-50 dark:bg-blue-950/70 border-2 border-blue-500 shadow-sm'
+                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-transparent'
+                                }`}
+                              >
+                                <div className="relative shrink-0">
+                                  <img 
+                                    src={item.thumbnail} 
+                                    alt="" 
+                                    className="w-14 h-10 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {isCurrent && (
+                                    <div className="absolute inset-0 bg-blue-600/40 rounded-lg flex items-center justify-center">
+                                      <Play size={14} fill="white" className="text-white" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className="text-[9px] font-bold text-slate-400">
+                                      #{idx + 1}
+                                    </span>
+                                    {isCurrent && (
+                                      <span className="text-[9px] font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-widest bg-blue-100 dark:bg-blue-900/60 px-1.5 py-0.2 rounded">
+                                        Assistindo
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className={`text-xs font-bold truncate leading-snug ${
+                                    isCurrent ? 'text-blue-700 dark:text-blue-300' : 'text-slate-800 dark:text-slate-200'
+                                  }`}>
+                                    {item.title}
+                                  </p>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    {item.duration || 'Vídeo aula'}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   </div>

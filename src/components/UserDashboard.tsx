@@ -17,7 +17,10 @@ import {
   Calendar,
   Flame,
   Check,
-  ChevronRight
+  ChevronRight,
+  RotateCcw,
+  Trash2,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Course } from '../types';
@@ -38,6 +41,9 @@ interface UserDashboardProps {
   completedCourses: string[];
   onNavigateToTab: (tab: 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'GeminiVideo') => void;
   onOpenMedia?: (course: Course, type: 'video' | 'pdf') => void;
+  onResetEmpenho?: () => void;
+  onEliminarCertificados?: () => void;
+  onResetAll?: () => void;
   theme?: 'light' | 'dark';
 }
 
@@ -47,6 +53,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   completedCourses,
   onNavigateToTab,
   onOpenMedia,
+  onResetEmpenho,
+  onEliminarCertificados,
+  onResetAll,
   theme = 'light'
 }) => {
   const isDark = theme === 'dark';
@@ -183,6 +192,47 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           >
             <Award size={16} />
             Meus Certificados ({totalCertificatesUnlocked}/3)
+          </button>
+        </div>
+      </div>
+
+      {/* Barra de Ações Única: Resetar Empenho e Eliminar Certificados */}
+      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 transition-all shadow-sm ${
+        isDark 
+          ? 'bg-[#131B2E] border-slate-800/90 text-slate-200' 
+          : 'bg-white border-slate-200/90 text-slate-800'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl shrink-0 ${isDark ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            <ShieldAlert size={20} />
+          </div>
+          <div>
+            <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+              Ações de Teste &amp; Validação de Engajamento
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+              Zere os dados de empenho ou elimine os certificados emitidos para validar as métricas do sistema.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+          <button
+            onClick={() => onResetEmpenho ? onResetEmpenho() : onResetAll?.()}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+            title="Zerar dados de empenho e engajamento"
+          >
+            <RotateCcw size={14} />
+            <span>Resetar Empenho</span>
+          </button>
+
+          <button
+            onClick={() => onEliminarCertificados ? onEliminarCertificados() : onResetAll?.()}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+            title="Eliminar certificados do usuário"
+          >
+            <Trash2 size={14} />
+            <span>Eliminar Certificados</span>
           </button>
         </div>
       </div>

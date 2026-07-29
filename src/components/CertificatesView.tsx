@@ -4,6 +4,7 @@ import { CertificateBanners } from './CertificateBanners';
 import { CertificatesSummary } from './CertificatesSummary';
 import { CertificateCard, CertificateStatusType } from './CertificateCard';
 import { motion } from 'motion/react';
+import { RotateCcw, Trash2, ShieldAlert } from 'lucide-react';
 
 interface CertificatesViewProps {
   userName: string;
@@ -15,6 +16,9 @@ interface CertificatesViewProps {
   onViewCert: (cert: Certificate) => void;
   onDownloadCert: (cert: Certificate) => void;
   onNavigateToSystem: (system: '7Edu' | 'TOTVS' | 'Todos') => void;
+  onResetEmpenho?: () => void;
+  onEliminarCertificados?: () => void;
+  onResetProgress?: () => void;
   theme?: 'light' | 'dark';
 }
 
@@ -28,6 +32,9 @@ export const CertificatesView: React.FC<CertificatesViewProps> = ({
   onViewCert,
   onDownloadCert,
   onNavigateToSystem,
+  onResetEmpenho,
+  onEliminarCertificados,
+  onResetProgress,
   theme = 'light'
 }) => {
   // Calculando progressos reais por categoria de curso
@@ -104,6 +111,47 @@ export const CertificatesView: React.FC<CertificatesViewProps> = ({
         onNavigateToSystem={onNavigateToSystem}
         theme={theme}
       />
+
+      {/* Barra de Ações Única: Resetar Empenho e Eliminar Certificados (Validação & Testes) */}
+      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4 transition-all shadow-sm ${
+        theme === 'dark' 
+          ? 'bg-[#131B2E] border-slate-800/90 text-slate-200' 
+          : 'bg-white border-slate-200/90 text-slate-800'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl shrink-0 ${theme === 'dark' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+            <ShieldAlert size={20} />
+          </div>
+          <div>
+            <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+              Controles de Redefinição &amp; Validação de Dados
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+              Utilize os botões em linha para zerar o empenho de aulas (engajamento) ou eliminar certificados emitidos para testes.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+          <button
+            onClick={() => onResetEmpenho ? onResetEmpenho() : onResetProgress?.()}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+            title="Resetar empenho / dados de engajamento de aulas"
+          >
+            <RotateCcw size={14} />
+            <span>Resetar Empenho</span>
+          </button>
+
+          <button
+            onClick={() => onEliminarCertificados ? onEliminarCertificados() : onResetProgress?.()}
+            className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/30 font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+            title="Eliminar e revogar certificados emitidos"
+          >
+            <Trash2 size={14} />
+            <span>Eliminar Certificados</span>
+          </button>
+        </div>
+      </div>
 
       {/* Seção 3: Padronização dos 3 Cards de Certificados */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
