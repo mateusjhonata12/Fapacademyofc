@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
@@ -9,7 +10,52 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Ensure public/uploads directory exists
+const uploadsDir = path.join(process.cwd(), "public", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Serve static uploads
+app.use("/uploads", express.static(uploadsDir));
+
+// Increase payload limits for large video/PDF files (up to 300MB)
+app.use(express.json({ limit: "300mb" }));
+app.use(express.urlencoded({ extended: true, limit: "300mb" }));
+
+// Upload endpoint via JSON / Base64
+app.post("/api/upload", async (req, res) => {
+  try {
+    const { filename, base64, dataUrl } = req.body;
+    if (!filename || (!base64 && !dataUrl)) {
+      return res.status(400).json({ error: "Parâmetros 'filename' e 'base64' ou 'dataUrl' são obrigatórios." });
+    }
+
+    const rawData = base64 || (dataUrl ? dataUrl.split(",")[1] : "");
+    if (!rawData) {
+      return res.status(400).json({ error: "Dados do arquivo vazios ou corrompidos." });
+    }
+
+    const buffer = Buffer.from(rawData, "base64");
+    const sanitizedFilename = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const filePath = path.join(uploadsDir, sanitizedFilename);
+
+    await fs.promises.writeFile(filePath, buffer);
+
+    const publicUrl = `/uploads/${sanitizedFilename}`;
+    console.log(`[Upload] Arquivo salvo com sucesso: ${filePath} (${buffer.length} bytes) -> URL: ${publicUrl}`);
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      filename: sanitizedFilename,
+      size: buffer.length
+    });
+  } catch (error: any) {
+    console.error("Erro no processamento do upload:", error);
+    return res.status(500).json({ error: error.message || "Erro ao salvar arquivo no servidor." });
+  }
+});
 
 // Initialize Gemini
 const ai = new GoogleGenAI({

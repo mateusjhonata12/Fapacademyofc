@@ -51,7 +51,11 @@ import {
   Globe,
   Award,
   BarChart2,
-  TrendingUp
+  TrendingUp,
+  Link2,
+  Check,
+  AlertCircle,
+  FileUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
@@ -1517,92 +1521,76 @@ export default function App() {
                 courses={courses}
                 onAddCourse={async (course) => {
                   setIsAppLoading(true);
+                  const newId = course.id || `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                  const fullCourse: Course = {
+                    ...course,
+                    id: newId,
+                    createdAt: course.createdAt || Date.now()
+                  };
+                  
+                  // Immediate local UI update
+                  setCourses(prev => {
+                    const updated = [fullCourse, ...prev.filter(c => c.id !== newId)];
+                    try {
+                      localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated));
+                    } catch (err) {
+                      console.warn("Storage save error:", err);
+                    }
+                    return updated;
+                  });
+
+                  // Cloud Firestore sync
                   try {
-                    const { id, ...data } = course;
-                    await addDoc(collection(db, 'courses'), {
+                    const { id, ...data } = fullCourse;
+                    await setDoc(doc(db, 'courses', id), {
                       ...data,
-                      createdAt: Date.now()
-                    });
+                      createdAt: fullCourse.createdAt
+                    }, { merge: true });
                   } catch (e) {
-                    console.error("Erro ao adicionar curso no Firestore, salvando localmente:", e);
-                    const fallbackCourse: Course = {
-                      ...course,
-                      id: 'local-' + Date.now(),
-                      createdAt: Date.now()
-                    };
-                    setCourses(prev => {
-                      const updated = [fallbackCourse, ...prev];
-                      try {
-                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                      } catch (err) {
-                        console.warn("Erro ao salvar fallback de cursos no localStorage:", err);
-                      }
-                      return updated;
-                    });
-                    alert("Curso guardado localmente com sucesso devido à indisponibilidade de conexão externa.");
+                    console.warn("Firestore sync offline/deferred, mantido localmente:", e);
                   } finally {
                     setIsAppLoading(false);
                   }
                 }}
                 onDeleteCourse={async (id) => {
                   setIsAppLoading(true);
-                  try {
-                    if (id.startsWith('local-')) {
-                      setCourses(prev => {
-                        const updated = prev.filter(c => c.id !== id);
-                        try {
-                          localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                        } catch (err) {
-                          console.warn(err);
-                        }
-                        return updated;
-                      });
-                    } else {
-                      await deleteDoc(doc(db, 'courses', id));
+                  // Immediate local UI update
+                  setCourses(prev => {
+                    const updated = prev.filter(c => c.id !== id);
+                    try {
+                      localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated));
+                    } catch (err) {
+                      console.warn("Storage save error:", err);
                     }
+                    return updated;
+                  });
+
+                  try {
+                    await deleteDoc(doc(db, 'courses', id));
                   } catch (e) {
-                    console.error("Erro ao deletar curso no Firestore, removendo localmente:", e);
-                    setCourses(prev => {
-                      const updated = prev.filter(c => c.id !== id);
-                      try {
-                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                      } catch (err) {
-                        console.warn(err);
-                      }
-                      return updated;
-                    });
+                    console.warn("Firestore delete deferred:", e);
                   } finally {
                     setIsAppLoading(false);
                   }
                 }}
                 onUpdateCourse={async (updatedCourse) => {
                   setIsAppLoading(true);
+                  // Immediate local UI update
+                  setCourses(prev => {
+                    const updated = prev.map(c => c.id === updatedCourse.id ? updatedCourse : c);
+                    try {
+                      localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated));
+                    } catch (err) {
+                      console.warn("Storage save error:", err);
+                    }
+                    return updated;
+                  });
+
                   try {
                     const { id, ...data } = updatedCourse;
-                    if (id.startsWith('local-')) {
-                      setCourses(prev => {
-                        const updated = prev.map(c => c.id === id ? updatedCourse : c);
-                        try {
-                          localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                        } catch (err) {
-                          console.warn(err);
-                        }
-                        return updated;
-                      });
-                    } else {
-                      await setDoc(doc(db, 'courses', id), data, { merge: true });
-                    }
+                    await setDoc(doc(db, 'courses', id), data, { merge: true });
                   } catch (e) {
-                    console.error("Erro ao atualizar curso no Firestore, modificando localmente:", e);
-                    setCourses(prev => {
-                      const updated = prev.map(c => c.id === updatedCourse.id ? updatedCourse : c);
-                      try {
-                        localStorage.setItem('fapacademy_offline_courses', JSON.stringify(updated.filter(c => c.id.startsWith('local-'))));
-                      } catch (err) {
-                        console.warn(err);
-                      }
-                      return updated;
-                    });
+                    console.warn("Firestore update deferred, mantido localmente:", e);
                   } finally {
                     setIsAppLoading(false);
                   }
@@ -2679,98 +2667,164 @@ const AdminView: React.FC<{
     };
   };
 
+  const [videoInputMode, setVideoInputMode] = useState<'link' | 'upload'>('link');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+
+  const normalizeVideoUrl = (rawUrl: string): string => {
+    if (!rawUrl) return '';
+    let url = rawUrl.trim();
+
+    // If iframe was pasted, extract src
+    const iframeMatch = url.match(/src=["']([^"']+)["']/i);
+    if (iframeMatch && iframeMatch[1]) {
+      url = iframeMatch[1].trim();
+    }
+
+    // Strip quotes
+    url = url.replace(/^["']|["']$/g, '');
+
+    // Allow special prefixes
+    if (url.startsWith('blob:') || url.startsWith('data:') || url.startsWith('local-file-') || url.startsWith('/uploads/')) {
+      return url;
+    }
+
+    // Auto-fix missing protocol
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      if (url.startsWith('//')) {
+        url = 'https:' + url;
+      } else {
+        url = 'https://' + url;
+      }
+    }
+
+    return url;
+  };
+
   const handleFileUpload = async (file: File, type: 'video' | 'pdf') => {
     setIsUploading(true);
+    setUploadProgress(10);
+    setUploadStatus(`Processando ${file.name}...`);
     
-    // Atualiza o estado imediatamente com um texto informativo temporário
+    // Create instant local blob url for immediate preview
+    const instantBlobUrl = URL.createObjectURL(file);
+    const localId = `local-file-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
     if (type === 'video') {
-      setNewCourse(prev => ({ ...prev, videoUrl: "Carregando mídia (Aguarde)..." }));
+      setNewCourse(prev => ({ ...prev, videoUrl: instantBlobUrl }));
     } else {
-      setNewCourse(prev => ({ ...prev, pdfUrl: "Carregando material (Aguarde)..." }));
+      setNewCourse(prev => ({ ...prev, pdfUrl: instantBlobUrl }));
     }
 
-    const localId = `local-file-${Date.now()}-${file.name}`;
-    let downloadURL = "";
-    let uploadedToCloud = false;
+    let finalUrl = "";
+    let uploadedSuccessfully = false;
 
-    // 1. Sempre salva localmente primeiro no IndexedDB para máxima redundância e agilidade local
+    // 1. Store in local IndexedDB for fast local cache
     try {
       await saveLocalFile(localId, file);
-      console.log("Arquivo armazenado em cache local do IndexedDB.");
+      setUploadProgress(25);
     } catch (dbErr) {
-      console.warn("Erro ao registrar backup local no IndexedDB:", dbErr);
+      console.warn("IndexedDB warning:", dbErr);
     }
 
-    // 2. Tenta fazer o upload para os provedores de nuvem configurados
+    // 2. Upload to internal server /api/upload for persistent access
     try {
-      const hasSupabase = isConfigured;
+      setUploadStatus("Enviando arquivo para o servidor...");
+      setUploadProgress(40);
       
-      if (hasSupabase) {
-        console.log("Iniciando upload para o Supabase Storage...");
-        const filePath = `courses/${type}s/${Date.now()}_${file.name}`;
+      const reader = new FileReader();
+      const dataUrlPromise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const dataUrl = await dataUrlPromise;
+      setUploadProgress(70);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          dataUrl: dataUrl
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.url) {
+          finalUrl = result.url;
+          uploadedSuccessfully = true;
+          setUploadProgress(100);
+          setUploadStatus("Arquivo salvo com sucesso!");
+        }
+      }
+    } catch (serverErr) {
+      console.warn("Upload no servidor /api/upload falhou, usando alternativas:", serverErr);
+    }
+
+    // 3. If server upload wasn't used or failed, try Supabase Storage
+    if (!uploadedSuccessfully && isConfigured) {
+      try {
+        setUploadStatus("Enviando para o Supabase Storage...");
+        const filePath = `courses/${type}s/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         const { error } = await supabase.storage
           .from('videos-sistema')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
+          .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-        if (error) {
-          throw new Error(`Supabase Storage: ${error.message}`);
+        if (!error) {
+          const { data: { publicUrl } } = supabase.storage.from('videos-sistema').getPublicUrl(filePath);
+          finalUrl = publicUrl;
+          uploadedSuccessfully = true;
+          setUploadProgress(100);
+          setUploadStatus("Upload concluído no Supabase!");
         }
+      } catch (supaErr) {
+        console.warn("Supabase upload error:", supaErr);
+      }
+    }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('videos-sistema')
-          .getPublicUrl(filePath);
-          
-        downloadURL = publicUrl;
-        uploadedToCloud = true;
-      } else {
-        // Fallback automático para o Firebase Storage
-        console.log("Iniciando upload para o Firebase Storage...");
-        const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name}`);
+    // 4. Try Firebase Storage if still not uploaded
+    if (!uploadedSuccessfully) {
+      try {
+        setUploadStatus("Enviando para o Firebase Storage...");
+        const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
         const snapshot = await uploadBytes(storageRef, file);
-        downloadURL = await getDownloadURL(snapshot.ref);
-        uploadedToCloud = true;
-      }
-    } catch (cloudError: any) {
-      console.warn("Upload de nuvem falhou, utilizando fallback autônomo:", cloudError);
-      // Se falhar o upload na nuvem e o arquivo for de até 6MB, converte para Base64 Data URL.
-      // Desta forma, o conteúdo do arquivo é armazenado no próprio Firestore e sincronizado em TODOS OS DISPOSITIVOS!
-      if (file.size <= 6 * 1024 * 1024) {
-        try {
-          downloadURL = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          uploadedToCloud = true;
-        } catch (readErr) {
-          downloadURL = localId;
-          uploadedToCloud = false;
-        }
-      } else {
-        downloadURL = localId;
-        uploadedToCloud = false;
+        finalUrl = await getDownloadURL(snapshot.ref);
+        uploadedSuccessfully = true;
+        setUploadProgress(100);
+        setUploadStatus("Upload concluído no Firebase!");
+      } catch (fbErr) {
+        console.warn("Firebase Storage upload error:", fbErr);
       }
     }
 
-    // 3. Define a URL de mídia correspondente
+    // 5. Fallback: use instantBlobUrl or localId if cloud/server failed
+    if (!finalUrl) {
+      finalUrl = instantBlobUrl || localId;
+      setUploadProgress(100);
+      setUploadStatus("Mídia carregada localmente.");
+    }
+
+    // Set URL and auto-fill defaults
     if (type === 'video') {
-      setNewCourse(prev => ({ ...prev, videoUrl: downloadURL }));
+      setNewCourse(prev => ({ 
+        ...prev, 
+        videoUrl: finalUrl,
+        duration: prev.duration || "15 min",
+        thumbnail: prev.thumbnail || (prev.system === '7Edu' 
+          ? "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80" 
+          : "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80")
+      }));
     } else {
-      setNewCourse(prev => ({ ...prev, pdfUrl: downloadURL }));
+      setNewCourse(prev => ({ ...prev, pdfUrl: finalUrl }));
     }
 
-    // 4. Exibe notificação de feedback amigável
-    if (uploadedToCloud) {
-      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} processado e sincronizado com sucesso! O conteúdo foi salvo no banco de dados para acesso de todos os alunos em qualquer dispositivo.`);
-    } else {
-      alert(`${type === 'video' ? 'Vídeo' : 'PDF'} salvo localmente neste computador.\n\nDica para sincronizar em outros dispositivos: Como o arquivo é superior a 6MB, informe o link público do seu vídeo ou PDF hospedado externamente (no YouTube, Google Drive, OneDrive, SharePoint, Vimeo, Supabase, Dropbox) para que todos os alunos consigam acessar em qualquer aparelho!`);
-    }
-
-    setIsUploading(false);
+    setTimeout(() => {
+      setIsUploading(false);
+      setUploadStatus('');
+      setUploadProgress(0);
+    }, 1000);
   };
 
   const handleSubmitUser = (e: React.FormEvent) => {
@@ -2781,7 +2835,7 @@ const AdminView: React.FC<{
       } else {
         onAddUser({ id: Math.random().toString(36).substr(2, 9), ...newUser });
       }
-      setNewUser({ name: '', email: '', password: '', role: 'Usuário' });
+      setNewUser({ name: '', email: '', password: '', role: 'user' });
       setIsAdding(false);
       setEditingUser(null);
     }
@@ -2789,10 +2843,16 @@ const AdminView: React.FC<{
 
   const isValidVideoUrl = (urlStr: string) => {
     if (!urlStr) return false;
-    const trimmed = urlStr.trim();
-    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return true;
+    const clean = normalizeVideoUrl(urlStr);
+    if (
+      clean.startsWith('local-file-') || 
+      clean.startsWith('blob:') || 
+      clean.startsWith('data:') || 
+      clean.startsWith('/uploads/') ||
+      clean.includes('/uploads/')
+    ) return true;
     try {
-      const parsed = new URL(trimmed);
+      const parsed = new URL(clean);
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch (_) {
       return false;
@@ -2801,10 +2861,16 @@ const AdminView: React.FC<{
 
   const isValidPdfUrl = (urlStr: string) => {
     if (!urlStr) return true;
-    const trimmed = urlStr.trim();
-    if (trimmed.startsWith('local-file-') || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return true;
+    const clean = normalizeVideoUrl(urlStr);
+    if (
+      clean.startsWith('local-file-') || 
+      clean.startsWith('blob:') || 
+      clean.startsWith('data:') || 
+      clean.startsWith('/uploads/') ||
+      clean.includes('/uploads/')
+    ) return true;
     try {
-      const parsed = new URL(trimmed);
+      const parsed = new URL(clean);
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch (_) {
       return false;
@@ -2813,42 +2879,54 @@ const AdminView: React.FC<{
 
   const handleSubmitCourse = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCourse.title) {
+    if (!newCourse.title || !newCourse.title.trim()) {
       alert("Por favor, preencha o título da aula.");
       return;
     }
-    if (!newCourse.description) {
-      alert("Por favor, preencha a descrição da aula.");
-      return;
-    }
-    if (newCourse.videoUrl) {
-      if (!isValidVideoUrl(newCourse.videoUrl)) {
-        alert("URL do vídeo inválida! Forneça um link HTTP/HTTPS válido do YouTube, Google Drive, Vimeo, Loom, Supabase, Firebase ou MP4 direto.");
-        return;
-      }
-    } else {
-      alert("Por favor, preencha a URL do vídeo.");
+
+    const cleanVideoUrl = normalizeVideoUrl(newCourse.videoUrl || '');
+    if (!cleanVideoUrl || !isValidVideoUrl(cleanVideoUrl)) {
+      alert("Por favor, insira o link do vídeo ou envie um arquivo de vídeo (MP4/WebM) para a aula.");
       return;
     }
 
-    if (newCourse.pdfUrl && !isValidPdfUrl(newCourse.pdfUrl)) {
-      alert("URL do PDF inválida! Forneça um link HTTP/HTTPS válido para o material de apoio.");
-      return;
-    }
+    const cleanPdfUrl = newCourse.pdfUrl ? normalizeVideoUrl(newCourse.pdfUrl) : '';
+
+    const finalThumbnail = newCourse.thumbnail?.trim() || (
+      newCourse.system === '7Edu'
+        ? "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
+        : "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80"
+    );
+
+    const finalDuration = newCourse.duration?.trim() || "15 min";
+    const finalDescription = newCourse.description?.trim() || `Material didático e procedimentos práticos no sistema ${newCourse.system}.`;
+
+    const courseData: Course = {
+      id: editingCourse ? editingCourse.id : `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      title: newCourse.title.trim(),
+      system: newCourse.system,
+      duration: finalDuration,
+      difficulty: newCourse.difficulty,
+      thumbnail: finalThumbnail,
+      videoUrl: cleanVideoUrl,
+      pdfUrl: cleanPdfUrl,
+      description: finalDescription,
+      createdAt: editingCourse?.createdAt || Date.now()
+    };
 
     try {
       if (editingCourse) {
-        onUpdateCourse({ ...editingCourse, ...newCourse });
+        onUpdateCourse(courseData);
         alert("Vídeo-aula atualizada com sucesso!");
       } else {
-        onAddCourse({ id: Math.random().toString(36).substr(2, 9), ...newCourse });
+        onAddCourse(courseData);
         alert("Vídeo-aula cadastrada com sucesso!");
       }
       setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' });
       setIsAdding(false);
       setEditingCourse(null);
-    } catch (err) {
-      alert("Erro ao salvar curso: " + err);
+    } catch (err: any) {
+      alert("Erro ao salvar aula: " + (err.message || err));
     }
   };
 
@@ -2871,6 +2949,7 @@ const AdminView: React.FC<{
       pdfUrl: course.pdfUrl || '',
       description: course.description || ''
     });
+    setVideoInputMode(course.videoUrl && (course.videoUrl.startsWith('/uploads/') || course.videoUrl.startsWith('blob:') || course.videoUrl.startsWith('data:')) ? 'upload' : 'link');
     setIsAdding(true);
   };
 
@@ -3482,168 +3561,264 @@ const AdminView: React.FC<{
                     </form>
                   )
                 ) : (
-                  <form onSubmit={handleSubmitCourse} className="p-6 space-y-4">
+                  <form onSubmit={handleSubmitCourse} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Título da Aula</label>
-                      <input type="text" required value={newCourse.title} onChange={(e) => setNewCourse({...newCourse, title: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Descrição Detalhada / Resumo da Aula</label>
-                      <textarea 
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Título da Aula *</label>
+                      <input 
+                        type="text" 
                         required 
-                        value={newCourse.description} 
-                        onChange={(e) => setNewCourse({...newCourse, description: e.target.value})} 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all h-20 resize-none text-sm" 
-                        placeholder="Insira as informações profissionais, tópicos abordados nesta aula..."
+                        value={newCourse.title} 
+                        onChange={(e) => setNewCourse({...newCourse, title: e.target.value})} 
+                        placeholder="Ex: Como emitir notas fiscais e conciliação bancária"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all font-medium text-slate-900" 
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Sistema</label>
-                        <select value={newCourse.system} onChange={(e) => setNewCourse({...newCourse, system: e.target.value as any})} className="w-full px-4 py-3 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Sistema</label>
+                        <select 
+                          value={newCourse.system} 
+                          onChange={(e) => setNewCourse({...newCourse, system: e.target.value as any})} 
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 text-sm focus:ring-2 focus:ring-[#3B82F6]"
+                        >
                           <option value="7Edu">7Edu</option>
                           <option value="TOTVS">TOTVS</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Dificuldade</label>
-                        <select value={newCourse.difficulty} onChange={(e) => setNewCourse({...newCourse, difficulty: e.target.value as any})} className="w-full px-4 py-3 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Dificuldade</label>
+                        <select 
+                          value={newCourse.difficulty} 
+                          onChange={(e) => setNewCourse({...newCourse, difficulty: e.target.value as any})} 
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 text-sm focus:ring-2 focus:ring-[#3B82F6]"
+                        >
                           <option value="Iniciante">Iniciante</option>
                           <option value="Intermediário">Intermediário</option>
                           <option value="Avançado">Avançado</option>
                         </select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Duração (Ex: 15 min)</label>
-                        <input type="text" required value={newCourse.duration} onChange={(e) => setNewCourse({...newCourse, duration: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Thumbnail (URL)</label>
-                        <input type="text" required value={newCourse.thumbnail} onChange={(e) => setNewCourse({...newCourse, thumbnail: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200" />
-                      </div>
-                    </div>
+
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-bold text-slate-700">Vídeo da Aula (URL do Vídeo Hospedado Fora)</label>
-                        <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-                          Hospedagem Externa Habilitada
-                        </span>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Descrição / Resumo da Aula</label>
+                      <textarea 
+                        value={newCourse.description} 
+                        onChange={(e) => setNewCourse({...newCourse, description: e.target.value})} 
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all h-16 resize-none text-sm" 
+                        placeholder="Objetivos e tópicos abordados nesta aula..."
+                      />
+                    </div>
+
+                    {/* Vídeo da Aula - Abas de Link vs Arquivo */}
+                    <div className="border border-slate-200 bg-slate-50/50 p-4 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                          <Video size={16} className="text-[#3B82F6]" />
+                          Vídeo da Aula *
+                        </label>
+                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold">
+                          <button
+                            type="button"
+                            onClick={() => setVideoInputMode('link')}
+                            className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 ${videoInputMode === 'link' ? 'bg-white text-[#3B82F6] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            <Link2 size={13} />
+                            Inserir Link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setVideoInputMode('upload')}
+                            className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 ${videoInputMode === 'upload' ? 'bg-white text-[#3B82F6] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            <FileUp size={13} />
+                            Subir Arquivo
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            value={newCourse.videoUrl} 
-                            onChange={(e) => setNewCourse({...newCourse, videoUrl: e.target.value})} 
-                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono text-slate-800" 
-                            placeholder="Ex: https://www.youtube.com/watch?v=... ou https://drive.google.com/file/d/..." 
-                          />
-                          <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl flex items-center gap-2 border border-slate-200 transition-colors whitespace-nowrap text-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                            {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
-                            {isUploading ? 'Subindo...' : 'Subir Arquivo'}
+
+                      {videoInputMode === 'link' ? (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={newCourse.videoUrl} 
+                              onChange={(e) => setNewCourse({...newCourse, videoUrl: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono text-slate-800 pr-24" 
+                              placeholder="Cole o link: YouTube, Google Drive, OneDrive, Vimeo, MP4..." 
+                            />
+                            {newCourse.videoUrl && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                                {getUrlType(newCourse.videoUrl)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1 text-[11px] text-slate-500">
+                            <span className="font-semibold text-slate-700">Compatível com:</span>
+                            {['YouTube', 'Google Drive', 'OneDrive', 'SharePoint', 'Vimeo', 'Loom', 'Supabase', 'MP4 direto'].map(p => (
+                              <span key={p} className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-600">✓ {p}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className={`border-2 border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/50 hover:bg-blue-50 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                             <input 
                               type="file" 
                               className="hidden" 
                               disabled={isUploading}
-                              accept="video/*" 
+                              accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*" 
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) handleFileUpload(file, 'video');
                               }}
                             />
+                            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2">
+                              {isUploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
+                            </div>
+                            <span className="text-sm font-bold text-slate-800">
+                              {isUploading ? 'Processando e enviando...' : 'Clique para selecionar o vídeo ou arraste aqui'}
+                            </span>
+                            <span className="text-xs text-slate-500 mt-0.5">
+                              Formatos suportados: MP4, WebM, MOV, OGG (até 300MB)
+                            </span>
                           </label>
-                        </div>
-                        <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
-                          <p className="font-bold text-slate-800 flex items-center gap-1.5">
-                            <Globe size={13} className="text-blue-600" />
-                            Provedores de Vídeo Externos Aceitos pelo Sistema:
-                          </p>
-                          <div className="flex flex-wrap gap-1.5 pt-0.5">
-                            {['YouTube', 'Google Drive', 'Vimeo', 'Loom', 'Supabase Storage', 'Firebase Storage', 'Dropbox', 'SharePoint', 'OneDrive', 'Link Direto MP4'].map((platform) => (
-                              <span key={platform} className="bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">
-                                ✓ {platform}
-                              </span>
-                            ))}
-                          </div>
-                          <p className="text-[10px] text-slate-500">
-                            Cole o link do seu vídeo hospedado na nuvem. O sistema converte automaticamente para reprodução direta dentro da plataforma sem redirecionamentos.
-                          </p>
-                        </div>
 
-                        {/* Pré-visualização em tempo real do player interno no formulário */}
-                        {newCourse.videoUrl && isValidVideoUrl(newCourse.videoUrl) && (
-                          <div className="p-3 bg-slate-900 rounded-2xl border border-slate-800 text-white space-y-2 text-left">
-                            <div className="flex items-center justify-between text-xs text-slate-300">
-                              <span className="font-bold flex items-center gap-1.5 text-blue-400">
-                                <Play size={14} className="fill-current" />
-                                Pré-visualização do Player Interno da Plataforma:
+                          {isUploading && (
+                            <div className="space-y-1.5 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
+                              <div className="flex justify-between text-xs font-semibold text-slate-700">
+                                <span>{uploadStatus || 'Enviando...'}</span>
+                                <span className="text-blue-600">{uploadProgress}%</span>
+                              </div>
+                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-[#3B82F6] transition-all duration-300 rounded-full" 
+                                  style={{ width: `${uploadProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {newCourse.videoUrl && !isUploading && (
+                            <div className="flex items-center justify-between text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl font-medium">
+                              <span className="flex items-center gap-1.5 truncate">
+                                <Check size={14} className="text-emerald-600 shrink-0" />
+                                Vídeo pronto para a aula!
                               </span>
-                              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
-                                ✓ Reprodução Interna Habilitada
+                              <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold shrink-0">
+                                Carregado
                               </span>
                             </div>
-                            <div className="w-full aspect-video max-h-[220px] rounded-xl overflow-hidden bg-black border border-slate-800">
-                              {isDirectVideo(newCourse.videoUrl) ? (
-                                <video 
-                                  src={getEmbedUrl(newCourse.videoUrl)} 
-                                  controls 
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : (
-                                <iframe 
-                                  src={getEmbedUrl(newCourse.videoUrl)} 
-                                  className="w-full h-full border-0"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                                  allowFullScreen
-                                  title="Pré-visualização do Vídeo"
-                                />
-                              )}
-                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Pré-visualização do Player */}
+                      {newCourse.videoUrl && isValidVideoUrl(newCourse.videoUrl) && !isUploading && (
+                        <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 text-white space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold flex items-center gap-1.5 text-blue-400">
+                              <Play size={13} className="fill-current" />
+                              Pré-visualização do Vídeo:
+                            </span>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-semibold">
+                              ✓ Reprodução Pronta
+                            </span>
                           </div>
-                        )}
-                      </div>
+                          <div className="w-full aspect-video max-h-[180px] rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                            {isDirectVideo(newCourse.videoUrl) ? (
+                              <video 
+                                src={getEmbedUrl(newCourse.videoUrl)} 
+                                controls 
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <iframe 
+                                src={getEmbedUrl(newCourse.videoUrl)} 
+                                className="w-full h-full border-0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                                allowFullScreen
+                                title="Prévia da Aula"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Material de Apoio (PDF / Documentos) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-bold text-slate-700">Material de Apoio (PDF / Documento)</label>
+                        <label className="block text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                          <FileText size={15} className="text-[#3B82F6]" />
+                          Material de Apoio (PDF / Documento)
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-semibold">Opcional</span>
                       </div>
-                      <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={newCourse.pdfUrl} 
+                          onChange={(e) => setNewCourse({...newCourse, pdfUrl: e.target.value})} 
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none text-sm text-slate-800" 
+                          placeholder="Link do PDF ou arquivo..." 
+                        />
+                        <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 border border-slate-200 text-xs font-bold transition-colors whitespace-nowrap ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <Upload size={14} />
+                          Subir PDF
                           <input 
-                            type="text" 
-                            value={newCourse.pdfUrl} 
-                            onChange={(e) => setNewCourse({...newCourse, pdfUrl: e.target.value})} 
-                            className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono text-slate-800" 
-                            placeholder="Ex: https://drive.google.com/file/d/... ou link direto do PDF" 
+                            type="file" 
+                            className="hidden" 
+                            disabled={isUploading}
+                            accept=".pdf,.doc,.docx" 
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileUpload(file, 'pdf');
+                            }}
                           />
-                          <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl flex items-center gap-2 border border-slate-200 transition-colors whitespace-nowrap text-sm ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                            {isUploading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                            {isUploading ? 'Subindo...' : 'Subir PDF'}
-                            <input 
-                              type="file" 
-                              className="hidden" 
-                              disabled={isUploading}
-                              accept=".pdf,.doc,.docx" 
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file, 'pdf');
-                              }}
-                            />
-                          </label>
-                        </div>
-                        <p className="text-[10px] text-slate-500 bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl leading-tight">
-                          💡 <strong>PDFs de fora:</strong> Aceita links do Google Drive, Dropbox, Supabase Storage, OneDrive, SharePoint ou qualquer URL HTTPS direta de PDF.
-                        </p>
+                        </label>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Duração Estimada</label>
+                        <input 
+                          type="text" 
+                          value={newCourse.duration} 
+                          onChange={(e) => setNewCourse({...newCourse, duration: e.target.value})} 
+                          placeholder="Ex: 15 min"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Capa / Thumbnail (URL)</label>
+                        <input 
+                          type="text" 
+                          value={newCourse.thumbnail} 
+                          onChange={(e) => setNewCourse({...newCourse, thumbnail: e.target.value})} 
+                          placeholder="Deixe em branco para automático"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" 
+                        />
+                      </div>
+                    </div>
+
                     <button 
                       type="submit" 
                       disabled={isUploading}
-                      className={`w-full text-white py-4 rounded-xl font-bold transition-colors mt-4 ${isUploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#3B82F6] hover:bg-[#2563EB]'}`}
+                      className={`w-full text-white py-3.5 rounded-xl font-bold transition-all shadow-md mt-2 flex items-center justify-center gap-2 ${isUploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#3B82F6] hover:bg-[#2563EB] shadow-blue-500/20'}`}
                     >
-                      {isUploading ? 'Aguarde o Upload...' : (editingCourse ? 'Salvar Alterações' : 'Adicionar Aula')}
+                      {isUploading ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Aguarde o envio do vídeo...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={18} />
+                          {editingCourse ? 'Salvar Alterações da Aula' : 'Cadastrar e Publicar Aula'}
+                        </>
+                      )}
                     </button>
                   </form>
                 )}
@@ -3673,6 +3848,9 @@ const isDirectVideo = (url: string) => {
   return (
     lower.startsWith('blob:') ||
     lower.startsWith('data:') ||
+    lower.startsWith('/uploads/') ||
+    lower.includes('/uploads/') ||
+    lower.startsWith('local-file-') ||
     lower.includes('.mp4') ||
     lower.includes('.webm') ||
     lower.includes('.ogg') ||
@@ -3698,6 +3876,7 @@ const getUrlType = (url: string) => {
   if (parsed.includes('drive.google.com')) return 'Google Drive';
   if (parsed.includes('supabase.co')) return 'Supabase Storage';
   if (parsed.includes('firebasestorage.googleapis.com')) return 'Firebase Storage';
+  if (parsed.startsWith('/uploads/') || parsed.includes('/uploads/')) return 'Arquivo no Servidor (MP4)';
   if (parsed.startsWith('blob:') || isDirectVideo(url)) return 'Vídeo Direto / MP4 (HTML5)';
   return 'Servidor de Mídia Externo';
 };
