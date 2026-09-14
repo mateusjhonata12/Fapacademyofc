@@ -55,7 +55,15 @@ import {
   Link2,
   Check,
   AlertCircle,
-  FileUp
+  FileUp,
+  DollarSign,
+  Calculator,
+  FileSpreadsheet,
+  Briefcase,
+  Lock,
+  ShieldAlert,
+  Filter,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
@@ -141,10 +149,14 @@ const downloadFile = async (url: string, filename: string) => {
 };
 
 // --- Tipos ---
+export type SectorType = 'Finanças' | 'Contabilidade' | 'Secretaria' | 'Comercial';
+export const SECTORS: SectorType[] = ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'];
+
 interface Course {
   id: string;
   title: string;
   system: '7Edu' | 'TOTVS';
+  sector?: SectorType;
   duration: string;
   difficulty: 'Iniciante' | 'Intermediário' | 'Avançado';
   thumbnail: string;
@@ -171,7 +183,7 @@ interface CourseCardProps {
   theme?: 'light' | 'dark';
 }
 
-type TabType = 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'Admin' | 'GeminiVideo' | 'MeuEmpenho';
+type TabType = 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'Admin' | 'GeminiVideo' | 'MeuEmpenho' | 'Finanças' | 'Contabilidade' | 'Secretaria' | 'Comercial';
 
 interface User {
   id: string;
@@ -180,14 +192,15 @@ interface User {
   password?: string;
   role: 'admin' | 'user';
   completedCourses?: string[];
+  allowedSectors?: SectorType[];
 }
 
 // --- Dados Simulados ---
 const INITIAL_USERS: User[] = [
-  { id: '1', name: 'Mateus Jhonata', email: 'mateusjhonata123@gmail.com', password: '123', role: 'admin' },
-  { id: '2', name: 'Administrador Fap', email: 'admin@fap.com.br', password: 'admin', role: 'admin' },
-  { id: '3', name: 'João Silva', email: 'joao@fap.com.br', password: 'user123', role: 'user' },
-  { id: '4', name: 'Maria Santos', email: 'maria@fap.com.br', password: 'user456', role: 'user' },
+  { id: '1', name: 'Mateus Jhonata', email: 'mateusjhonata123@gmail.com', password: '123', role: 'admin', allowedSectors: ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'] },
+  { id: '2', name: 'Administrador Fap', email: 'admin@fap.com.br', password: 'admin', role: 'admin', allowedSectors: ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'] },
+  { id: '3', name: 'João Silva', email: 'joao@fap.com.br', password: 'user123', role: 'user', allowedSectors: ['Finanças', 'Contabilidade'] },
+  { id: '4', name: 'Maria Santos', email: 'maria@fap.com.br', password: 'user456', role: 'user', allowedSectors: ['Secretaria', 'Comercial'] },
 ];
 
 const COURSES: Course[] = [
@@ -195,6 +208,7 @@ const COURSES: Course[] = [
     id: '1',
     title: 'Lançamento de Desconto Condicional',
     system: '7Edu',
+    sector: 'Finanças',
     duration: '15 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/736x/02/5a/32/025a32bbd863c42e35e4a87cd372be81.jpg',
@@ -204,6 +218,7 @@ const COURSES: Course[] = [
     id: '2',
     title: 'Alteração de Data de Boleto',
     system: '7Edu',
+    sector: 'Finanças',
     duration: '10 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/59/e4/55/59e4554eed17f3bbf64aaf1d2b5d0e06.jpg',
@@ -213,6 +228,7 @@ const COURSES: Course[] = [
     id: '3',
     title: 'Alteração de Contrato',
     system: '7Edu',
+    sector: 'Secretaria',
     duration: '20 min',
     difficulty: 'Avançado',
     thumbnail: 'https://i.pinimg.com/736x/fc/a0/2e/fca02e2d40c27ff314f401f86e13d75f.jpg',
@@ -222,6 +238,7 @@ const COURSES: Course[] = [
     id: '4',
     title: 'Lançar Negociação',
     system: '7Edu',
+    sector: 'Comercial',
     duration: '25 min',
     difficulty: 'Avançado',
     thumbnail: 'https://i.pinimg.com/736x/b0/00/a6/b000a6dff49949b26bbf932dc7bbddf5.jpg',
@@ -232,6 +249,7 @@ const COURSES: Course[] = [
     id: '8',
     title: 'Lançamento de Contrato / Pensionato',
     system: '7Edu',
+    sector: 'Secretaria',
     duration: '22 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/1200x/61/ba/f1/61baf113e8c2e798d4bec4a783a9229c.jpg',
@@ -241,6 +259,7 @@ const COURSES: Course[] = [
     id: '9',
     title: 'Lançar Bolsa Dissídio',
     system: '7Edu',
+    sector: 'Finanças',
     duration: '15 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/736x/1d/b6/f7/1db6f75828876c1d6c16f9e893f27f09.jpg',
@@ -250,6 +269,7 @@ const COURSES: Course[] = [
     id: '10',
     title: 'Lançar Taxa de Evento',
     system: '7Edu',
+    sector: 'Finanças',
     duration: '12 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/5b/48/25/5b4825901279276a6b6e557cde6b902f.jpg',
@@ -259,6 +279,7 @@ const COURSES: Course[] = [
     id: '11',
     title: 'Baixar Arquivo Bancário',
     system: '7Edu',
+    sector: 'Contabilidade',
     duration: '18 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/1200x/55/4f/fa/554ffab47b99d836c193031ac6dafa7f.jpg',
@@ -268,6 +289,7 @@ const COURSES: Course[] = [
     id: '20',
     title: 'Baixar Declaração de Pagamentos',
     system: '7Edu',
+    sector: 'Contabilidade',
     duration: '10 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/83/1c/0d/831c0dd3d6cd518e330eed0909427703.jpg',
@@ -277,6 +299,7 @@ const COURSES: Course[] = [
     id: '12',
     title: 'Lançar Bolsa (Desconto / Filantrópica)',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '20 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/736x/b7/a7/96/b7a79630680a20b165bdad440b2bd368.jpg',
@@ -286,6 +309,7 @@ const COURSES: Course[] = [
     id: '13',
     title: 'Cancelar Lançamento',
     system: 'TOTVS',
+    sector: 'Contabilidade',
     duration: '10 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/9c/7b/63/9c7b639a76ff775b1d0b89aceb8cebc2.jpg',
@@ -295,6 +319,7 @@ const COURSES: Course[] = [
     id: '14',
     title: 'Baixar Boletos',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '15 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/d5/6d/55/d56d55038df48a5e87577c8b33609e0f.jpg',
@@ -304,6 +329,7 @@ const COURSES: Course[] = [
     id: '15',
     title: 'Registrar e Cancelar Remessa de Boletos',
     system: 'TOTVS',
+    sector: 'Contabilidade',
     duration: '25 min',
     difficulty: 'Avançado',
     thumbnail: 'https://i.pinimg.com/1200x/b6/38/c2/b638c2455e4877a1bbfd4c3c0575da9c.jpg',
@@ -313,6 +339,7 @@ const COURSES: Course[] = [
     id: '16',
     title: 'Baixar Declaração de Pagamentos',
     system: 'TOTVS',
+    sector: 'Contabilidade',
     duration: '12 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/7a/3b/1b/7a3b1b8403a073057292533a5f82e31f.jpg',
@@ -322,6 +349,7 @@ const COURSES: Course[] = [
     id: '17',
     title: 'Baixar Declaração de Débitos',
     system: 'TOTVS',
+    sector: 'Contabilidade',
     duration: '12 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/1200x/e9/e8/1f/e9e81f7db763553e51869ed3abe9dc43.jpg',
@@ -331,6 +359,7 @@ const COURSES: Course[] = [
     id: '18',
     title: 'Aceite de Contrato',
     system: 'TOTVS',
+    sector: 'Secretaria',
     duration: '15 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/736x/7f/3a/aa/7f3aaaa7ea3f0c3cf9ff780d218dc107.jpg',
@@ -340,6 +369,7 @@ const COURSES: Course[] = [
     id: '19',
     title: 'Retorno de Cobrança',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '20 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/736x/e1/3e/63/e13e63fb996ee070375592625c1c8b32.jpg',
@@ -349,6 +379,7 @@ const COURSES: Course[] = [
     id: '21',
     title: 'Assistente de parcelas / gerar parcelas',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '18 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/736x/5f/8e/6c/5f8e6cbc8801b5b41bae70b9c02322c4.jpg',
@@ -358,6 +389,7 @@ const COURSES: Course[] = [
     id: '22',
     title: 'Cadastrar logos',
     system: 'TOTVS',
+    sector: 'Secretaria',
     duration: '10 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/1200x/93/01/3b/93013bc2b7dc1c7a82df5ebff448f96d.jpg',
@@ -367,6 +399,7 @@ const COURSES: Course[] = [
     id: '28',
     title: 'Lançar contrato de Pensionato',
     system: 'TOTVS',
+    sector: 'Secretaria',
     duration: '10 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/a1/14/97/a11497ccc8d4ac79fcc11fb5415833cc.jpg',
@@ -376,6 +409,7 @@ const COURSES: Course[] = [
     id: '23',
     title: 'Devolução de mensalidade',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '15 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/1200x/85/95/7f/85957f8aba52e654066b75a51482dec7.jpg',
@@ -385,6 +419,7 @@ const COURSES: Course[] = [
     id: '24',
     title: 'Lançamento mensal de Boletos',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '20 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/1200x/18/ea/66/18ea66f817ab3b0a487c83796437e383.jpg',
@@ -394,6 +429,7 @@ const COURSES: Course[] = [
     id: '25',
     title: 'Lançamento individual de boletos',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '12 min',
     difficulty: 'Iniciante',
     thumbnail: 'https://i.pinimg.com/736x/62/50/28/625028aeb510d0c0f7fd68629240e806.jpg',
@@ -403,6 +439,7 @@ const COURSES: Course[] = [
     id: '26',
     title: 'Vincular 2 lançamentos em um 1 boleto',
     system: 'TOTVS',
+    sector: 'Finanças',
     duration: '15 min',
     difficulty: 'Avançado',
     thumbnail: 'https://i.pinimg.com/1200x/c9/79/ad/c979add200083998f27138d82d15dfb7.jpg',
@@ -412,6 +449,7 @@ const COURSES: Course[] = [
     id: '27',
     title: 'Devolução de mensalidade',
     system: '7Edu',
+    sector: 'Finanças',
     duration: '14 min',
     difficulty: 'Intermediário',
     thumbnail: 'https://i.pinimg.com/1200x/30/0d/c9/300dc97960d1a89943538da53942c891.jpg',
@@ -940,8 +978,12 @@ export default function App() {
           setCompletedCourses(data.completedCourses);
           localStorage.setItem('fapacademy_progress', JSON.stringify(data.completedCourses));
         }
-        // Mantém atualizado o objeto do usuário local caso cargo ou nome mudem
-        if (data.name !== currentUser.name || data.role !== currentUser.role) {
+        // Mantém atualizado o objeto do usuário local caso cargo, nome ou setores permitidos mudem
+        if (
+          data.name !== currentUser.name || 
+          data.role !== currentUser.role || 
+          JSON.stringify(data.allowedSectors) !== JSON.stringify(currentUser.allowedSectors)
+        ) {
           const updated = { ...currentUser, ...data };
           setCurrentUser(updated);
           localStorage.setItem('fapacademy_user', JSON.stringify(updated));
@@ -1034,7 +1076,8 @@ export default function App() {
           name,
           email,
           role: 'user',
-          password: 'corporate-oauth-user' // Senha padrão fictícia de controle
+          password: 'corporate-oauth-user', // Senha padrão fictícia de controle
+          allowedSectors: ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial']
         };
         await setDoc(doc(db, 'users', newId), newUser);
         userObj = newUser;
@@ -1075,7 +1118,8 @@ export default function App() {
                 name: emailClean.split('@')[0].toUpperCase(),
                 email: emailClean,
                 role: 'user',
-                password: 'corporate-oauth-user'
+                password: 'corporate-oauth-user',
+                allowedSectors: ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial']
               };
               await setDoc(doc(db, 'users', newId), userObj);
             }
@@ -1114,16 +1158,55 @@ export default function App() {
     localStorage.setItem('fapacademy_progress', JSON.stringify(completedCourses));
   }, [completedCourses]);
 
+  const isAdmin = currentUser?.role?.toLowerCase() === 'admin' || currentUser?.email === 'mateusjhonata123@gmail.com';
+
+  const userAllowedSectors = useMemo(() => {
+    if (isAdmin) return SECTORS;
+    if (currentUser?.allowedSectors && currentUser.allowedSectors.length > 0) {
+      return currentUser.allowedSectors;
+    }
+    return SECTORS;
+  }, [isAdmin, currentUser]);
+
+  const [selectedSectorFilter, setSelectedSectorFilter] = useState<SectorType | 'Todos'>('Todos');
+
+  // Cursos acessíveis pelo usuário logado conforme permissões de setor
+  const userAccessibleCourses = useMemo(() => {
+    if (isAdmin) return courses;
+    return courses.filter(course => userAllowedSectors.includes(course.sector || 'Finanças'));
+  }, [isAdmin, courses, userAllowedSectors]);
+
   // --- Lógica de Filtro ---
   const filteredCourses = useMemo(() => {
-    return courses
+    return userAccessibleCourses
       .filter(course => {
-        const matchesTab = activeTab === 'Todos' || activeTab === 'Home' || course.system === activeTab;
-        const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesTab && matchesSearch;
+        const courseSector = course.sector || 'Finanças';
+        
+        let matchesTab = true;
+        if (activeTab === 'Todos' || activeTab === 'Home') {
+          matchesTab = true;
+        } else if (activeTab === '7Edu' || activeTab === 'TOTVS') {
+          matchesTab = course.system === activeTab;
+        } else if (SECTORS.includes(activeTab as any)) {
+          matchesTab = courseSector === activeTab;
+        }
+
+        let matchesSectorFilter = true;
+        if (selectedSectorFilter !== 'Todos') {
+          matchesSectorFilter = courseSector === selectedSectorFilter;
+        }
+
+        const queryLower = searchQuery.toLowerCase().trim();
+        const matchesSearch = !queryLower || 
+          course.title.toLowerCase().includes(queryLower) ||
+          courseSector.toLowerCase().includes(queryLower) ||
+          course.system.toLowerCase().includes(queryLower) ||
+          (course.description && course.description.toLowerCase().includes(queryLower));
+
+        return matchesTab && matchesSectorFilter && matchesSearch;
       })
       .sort((a, b) => a.title.localeCompare(b.title));
-  }, [activeTab, searchQuery, courses]);
+  }, [activeTab, selectedSectorFilter, searchQuery, userAccessibleCourses]);
 
   const toggleComplete = async (id: string) => {
     const isNowCompleted = !completedCourses.includes(id);
@@ -1150,7 +1233,11 @@ export default function App() {
     }
   };
 
-  const progressPercentage = Math.round((completedCourses.length / Math.max(COURSES.length, courses.length)) * 100);
+  const userCompletedCount = useMemo(() => {
+    return completedCourses.filter(id => userAccessibleCourses.some(c => c.id === id)).length;
+  }, [completedCourses, userAccessibleCourses]);
+
+  const progressPercentage = Math.round((userCompletedCount / Math.max(1, userAccessibleCourses.length)) * 100);
   const hasUnlockedCertificates = is7Edu100 || isTotvs100 || isFinancas100;
   const unlockedCount = (is7Edu100 ? 1 : 0) + (isTotvs100 ? 1 : 0) + (isFinancas100 ? 1 : 0);
 
@@ -1240,19 +1327,61 @@ export default function App() {
             />
             
             <div className="pt-4 pb-2">
+              <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Setores</p>
+            </div>
+            {SECTORS.map((sector) => {
+              const isAllowed = userAllowedSectors.includes(sector);
+              const sectorCoursesCount = courses.filter(c => (c.sector || 'Finanças') === sector).length;
+              
+              const icon = sector === 'Finanças' ? <DollarSign size={20} className={isAllowed ? "text-emerald-400" : "text-slate-500"} />
+                : sector === 'Contabilidade' ? <Calculator size={20} className={isAllowed ? "text-indigo-400" : "text-slate-500"} />
+                : sector === 'Secretaria' ? <FileSpreadsheet size={20} className={isAllowed ? "text-amber-400" : "text-slate-500"} />
+                : <Briefcase size={20} className={isAllowed ? "text-purple-400" : "text-slate-500"} />;
+
+              return (
+                <SidebarItem 
+                  key={sector}
+                  icon={icon}
+                  label={sector} 
+                  active={activeTab === sector} 
+                  badge={
+                    !isAllowed ? (
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-red-950/60 text-red-300 border border-red-800/80 flex items-center gap-1 shadow-sm shrink-0">
+                        <Lock size={10} /> Restrito
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-slate-800 text-slate-400 text-xs">
+                        {sectorCoursesCount}
+                      </span>
+                    )
+                  }
+                  onClick={() => {
+                    if (!isAllowed) {
+                      alert(`Acesso Restrito: Seu perfil de colaborador não possui autorização para visualizar os treinamentos do setor de ${sector}. Entre em contato com a administração caso necessite de liberação.`);
+                      return;
+                    }
+                    setActiveTab(sector); 
+                    setSelectedSectorFilter('Todos');
+                    if (window.innerWidth < 1024) setIsSidebarOpen(false); 
+                  }} 
+                />
+              );
+            })}
+
+            <div className="pt-4 pb-2">
               <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sistemas</p>
             </div>
             <SidebarItem 
               icon={<BookOpen size={20} />} 
               label="7Edu" 
               active={activeTab === '7Edu'} 
-              onClick={() => { setActiveTab('7Edu'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+              onClick={() => { setActiveTab('7Edu'); setSelectedSectorFilter('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
               icon={<Settings size={20} />} 
               label="TOTVS" 
               active={activeTab === 'TOTVS'} 
-              onClick={() => { setActiveTab('TOTVS'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
+              onClick={() => { setActiveTab('TOTVS'); setSelectedSectorFilter('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
 
             {currentUser && (currentUser.role?.toLowerCase() === 'admin' || currentUser.email === 'mateusjhonata123@gmail.com') && (
@@ -1308,7 +1437,7 @@ export default function App() {
               />
             </div>
             <p className="mt-2 text-[10px] text-slate-500">
-              {completedCourses.length} de {COURSES.length} aulas concluídas
+              {userCompletedCount} de {userAccessibleCourses.length} aulas concluídas
             </p>
           </div>
 
@@ -1321,6 +1450,9 @@ export default function App() {
               <div className="flex-1 overflow-hidden">
                 <p className="truncate text-sm font-medium">{currentUser?.name}</p>
                 <p className="truncate text-xs text-slate-400">{currentUser?.email}</p>
+                <p className="truncate text-[10px] text-blue-400 font-semibold mt-0.5">
+                  {isAdmin ? 'Acesso Global' : userAllowedSectors.join(' • ')}
+                </p>
               </div>
               <button 
                 onClick={handleLogout}
@@ -1434,10 +1566,15 @@ export default function App() {
             {activeTab === 'Home' ? (
               <HomeView 
                 key="home" 
-                onNavigate={(tab) => setActiveTab(tab)} 
+                onNavigate={(tab) => {
+                  setActiveTab(tab);
+                  setSelectedSectorFilter('Todos');
+                }} 
                 theme={theme}
                 courses={courses}
                 completedCourses={completedCourses}
+                userAllowedSectors={userAllowedSectors}
+                isAdmin={isAdmin}
                 onOpenMedia={(course, type) => {
                   setSelectedCourse(course);
                   setModalType(type);
@@ -1447,9 +1584,12 @@ export default function App() {
               <UserDashboard 
                 key="meu-empenho"
                 userName={currentUser?.name || ''}
-                courses={courses}
+                courses={userAccessibleCourses}
                 completedCourses={completedCourses}
-                onNavigateToTab={(tab) => setActiveTab(tab)}
+                onNavigateToTab={(tab) => {
+                  setActiveTab(tab);
+                  setSelectedSectorFilter('Todos');
+                }}
                 onOpenMedia={(course, type) => {
                   setSelectedCourse(course);
                   setModalType(type);
@@ -1463,7 +1603,7 @@ export default function App() {
               <CertificatesView 
                 key="certificates"
                 userName={currentUser?.name || ''}
-                courses={courses}
+                courses={userAccessibleCourses}
                 completedCourses={completedCourses}
                 cert7Edu={cert7Edu}
                 certTotvs={certTotvs}
@@ -1659,12 +1799,77 @@ export default function App() {
                 />
 
                 <div className="mb-8">
-                  <h1 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                    {activeTab === 'Todos' ? 'Todos os Treinamentos' : `Treinamentos ${activeTab}`}
-                  </h1>
-                  <p className={`mt-2 transition-colors ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
-                    Explore os procedimentos operacionais padrão para otimizar seu fluxo de trabalho.
-                  </p>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        {SECTORS.includes(activeTab as any) && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                            Setor Institucional
+                          </span>
+                        )}
+                        {(activeTab === '7Edu' || activeTab === 'TOTVS') && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                            Sistema Integrado
+                          </span>
+                        )}
+                      </div>
+                      <h1 className={`text-3xl font-bold tracking-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                        {activeTab === 'Todos' 
+                          ? 'Todos os Treinamentos' 
+                          : SECTORS.includes(activeTab as any)
+                            ? `Setor de ${activeTab}`
+                            : `Treinamentos ${activeTab}`}
+                      </h1>
+                      <p className={`mt-1 transition-colors text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        {filteredCourses.length} {filteredCourses.length === 1 ? 'procedimento disponível' : 'procedimentos disponíveis'} {searchQuery ? 'para sua pesquisa' : 'para capacitação operacional'}.
+                      </p>
+                    </div>
+
+                    {/* Filtro Rápido de Setor se estiver em abas gerais ou de sistema */}
+                    {!SECTORS.includes(activeTab as any) && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-xs font-semibold mr-1 flex items-center gap-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <Filter size={13} /> Setor:
+                        </span>
+                        <button
+                          onClick={() => setSelectedSectorFilter('Todos')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            selectedSectorFilter === 'Todos'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : theme === 'dark'
+                                ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 border border-slate-700'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                          }`}
+                        >
+                          Todos ({userAccessibleCourses.length})
+                        </button>
+                        {SECTORS.map(sec => {
+                          const isAllowed = userAllowedSectors.includes(sec);
+                          const count = userAccessibleCourses.filter(c => (c.sector || 'Finanças') === sec).length;
+                          return (
+                            <button
+                              key={sec}
+                              disabled={!isAllowed}
+                              onClick={() => setSelectedSectorFilter(sec)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                !isAllowed
+                                  ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500'
+                                  : selectedSectorFilter === sec
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : theme === 'dark'
+                                      ? 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 border border-slate-700'
+                                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                              }`}
+                              title={!isAllowed ? `Acesso restrito ao setor ${sec}` : undefined}
+                            >
+                              {!isAllowed && <Lock size={11} className="text-red-400" />}
+                              {sec} ({count})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Grid de Cards */}
@@ -1828,8 +2033,10 @@ const HomeView: React.FC<{
   theme: 'light' | 'dark',
   courses?: Course[],
   completedCourses?: string[],
+  userAllowedSectors?: SectorType[],
+  isAdmin?: boolean,
   onOpenMedia?: (course: Course, type: 'video' | 'pdf') => void
-}> = ({ onNavigate, theme, courses = [], completedCourses = [], onOpenMedia }) => {
+}> = ({ onNavigate, theme, courses = [], completedCourses = [], userAllowedSectors = SECTORS, isAdmin = false, onOpenMedia }) => {
   const count7Edu = courses.filter(c => c.system === '7Edu').length || 10;
   const countTotvs = courses.filter(c => c.system === 'TOTVS').length || 16;
 
@@ -2109,6 +2316,127 @@ const HomeView: React.FC<{
         </motion.div>
       </section>
 
+      {/* Seção de Escolha de Setores da Instituição */}
+      <section className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0E1526] border-slate-800' : 'bg-white border-slate-200/80'}`}>
+        <div className="max-w-7xl mx-auto w-full">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <span className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+              Departamentos Institucionais
+            </span>
+            <h2 className={`font-display text-3xl font-black mt-3 mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              Treinamentos por Setor
+            </h2>
+            <p className={`text-base max-w-xl mx-auto ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+              Acesse diretamente os procedimentos e rotinas operacionais do seu departamento de atuação.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            {SECTORS.map((sector) => {
+              const isAllowed = isAdmin || (userAllowedSectors && userAllowedSectors.includes(sector));
+              const sectorCourses = courses.filter(c => (c.sector || 'Finanças') === sector);
+              const sectorCompleted = sectorCourses.filter(c => completedCourses.includes(c.id)).length;
+              const sectorPct = sectorCourses.length > 0 ? Math.round((sectorCompleted / sectorCourses.length) * 100) : 0;
+
+              const meta = sector === 'Finanças' 
+                ? {
+                    icon: <DollarSign size={24} className="text-emerald-400" />,
+                    gradient: 'from-emerald-900/40 via-slate-900 to-slate-950',
+                    border: 'border-emerald-500/40',
+                    desc: 'Boletos, descontos condicionais, devoluções, baixas bancárias e conciliação.'
+                  }
+                : sector === 'Contabilidade'
+                ? {
+                    icon: <Calculator size={24} className="text-indigo-400" />,
+                    gradient: 'from-indigo-900/40 via-slate-900 to-slate-950',
+                    border: 'border-indigo-500/40',
+                    desc: 'Relatórios gerenciais contábeis, lançamentos e parametrizações operacionais.'
+                  }
+                : sector === 'Secretaria'
+                ? {
+                    icon: <FileSpreadsheet size={24} className="text-amber-400" />,
+                    gradient: 'from-amber-900/40 via-slate-900 to-slate-950',
+                    border: 'border-amber-500/40',
+                    desc: 'Contratos acadêmicos, matrículas, bolsas dissídio e registros de estudantes.'
+                  }
+                : {
+                    icon: <Briefcase size={24} className="text-purple-400" />,
+                    gradient: 'from-purple-900/40 via-slate-900 to-slate-950',
+                    border: 'border-purple-500/40',
+                    desc: 'Captação, negociações comerciais, atendimento e propostas educacionais.'
+                  };
+
+              return (
+                <button
+                  key={sector}
+                  onClick={() => {
+                    if (!isAllowed) {
+                      alert(`Acesso Restrito: Seu perfil de usuário não possui autorização para o setor de ${sector}. Entre em contato com o administrador.`);
+                      return;
+                    }
+                    onNavigate(sector);
+                  }}
+                  className={`group relative overflow-hidden rounded-2xl border p-6 text-left transition-all duration-300 flex flex-col justify-between shadow-lg ${
+                    isAllowed 
+                      ? 'hover:-translate-y-1.5 hover:shadow-xl active:scale-95 cursor-pointer' 
+                      : 'opacity-70 cursor-not-allowed'
+                  } ${
+                    theme === 'dark' 
+                      ? `bg-gradient-to-br ${meta.gradient} ${meta.border} text-white` 
+                      : `bg-white border-slate-200 text-slate-900 hover:border-blue-300 shadow-slate-100`
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-2.5 rounded-xl border ${
+                        theme === 'dark' ? 'bg-white/10 border-white/15' : 'bg-slate-100 border-slate-200 text-slate-800'
+                      }`}>
+                        {meta.icon}
+                      </div>
+                      {isAllowed ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          {sectorCourses.length} {sectorCourses.length === 1 ? 'Aula' : 'Aulas'}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+                          <Lock size={10} /> Restrito
+                        </span>
+                      )}
+                    </div>
+                    
+                    <h3 className={`font-display text-lg font-bold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                      {sector}
+                    </h3>
+                    <p className={`text-xs leading-relaxed mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {meta.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-white/10 dark:border-white/10 border-slate-100 flex items-center justify-between text-xs">
+                    {isAllowed ? (
+                      <>
+                        <span className="font-semibold text-slate-400">Concluído: <b className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{sectorPct}%</b></span>
+                        <div className="flex items-center gap-1 font-bold text-blue-500 group-hover:translate-x-0.5 transition-transform">
+                          <span>Acessar</span>
+                          <ArrowRight size={14} />
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-slate-500 italic">Requer autorização</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Seção de Escolha de Sistemas */}
       <section id="system-selection" className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0B0F19] border-slate-800' : 'bg-slate-100/70 border-slate-200/80'}`}>
         <div className="max-w-7xl mx-auto w-full">
@@ -2309,21 +2637,31 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           </button>
         </div>
         
-        <div className="absolute top-3 left-3 flex gap-2">
-          <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ${
+        <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
+          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ${
             course.system === '7Edu' ? 'bg-indigo-600' : 'bg-emerald-600'
           }`}>
             {course.system}
           </span>
+          {course.sector && (
+            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ${
+              course.sector === 'Finanças' ? 'bg-emerald-700' :
+              course.sector === 'Contabilidade' ? 'bg-indigo-700' :
+              course.sector === 'Secretaria' ? 'bg-amber-600' :
+              'bg-purple-700'
+            }`}>
+              {course.sector}
+            </span>
+          )}
           {course.pdfUrl && (
-            <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1 ${
+            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1 ${
               theme === 'dark' ? 'bg-slate-800/90 text-slate-200' : 'bg-white/90 text-slate-900'
             }`}>
               <FileText size={10} /> PDF
             </span>
           )}
           {isCompleted && (
-            <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm bg-emerald-500">
+            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm bg-emerald-500">
               Concluído
             </span>
           )}
@@ -2590,11 +2928,33 @@ const AdminView: React.FC<{
   const [isBulk, setIsBulk] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user' as const });
+  const [newUser, setNewUser] = useState<{
+    name: string;
+    email: string;
+    password?: string;
+    role: 'user' | 'admin';
+    allowedSectors: SectorType[];
+  }>({ 
+    name: '', 
+    email: '', 
+    password: '', 
+    role: 'user', 
+    allowedSectors: ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'] 
+  });
   const [newCourse, setNewCourse] = useState<Omit<Course, 'id'>>({ 
-    title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' 
+    title: '', 
+    system: '7Edu', 
+    sector: 'Finanças',
+    duration: '', 
+    difficulty: 'Iniciante', 
+    thumbnail: '', 
+    videoUrl: '', 
+    pdfUrl: '', 
+    description: '' 
   });
   const [bulkText, setBulkText] = useState('');
+  const [isCourseBulk, setIsCourseBulk] = useState(false);
+  const [bulkCourseText, setBulkCourseText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
   // Generate beautiful analytical data from courses and users
@@ -2703,8 +3063,9 @@ const AdminView: React.FC<{
 
   const handleFileUpload = async (file: File, type: 'video' | 'pdf') => {
     setIsUploading(true);
-    setUploadProgress(10);
-    setUploadStatus(`Processando ${file.name}...`);
+    setUploadProgress(5);
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
+    setUploadStatus(`Preparando "${file.name}" (${sizeInMB} MB)...`);
     
     // Create instant local blob url for immediate preview
     const instantBlobUrl = URL.createObjectURL(file);
@@ -2716,57 +3077,98 @@ const AdminView: React.FC<{
       setNewCourse(prev => ({ ...prev, pdfUrl: instantBlobUrl }));
     }
 
-    let finalUrl = "";
-    let uploadedSuccessfully = false;
-
-    // 1. Store in local IndexedDB for fast local cache
+    // Always cache in local IndexedDB first for instant access
     try {
       await saveLocalFile(localId, file);
-      setUploadProgress(25);
     } catch (dbErr) {
       console.warn("IndexedDB warning:", dbErr);
     }
 
-    // 2. Upload to internal server /api/upload for persistent access
+    let finalUrl = "";
+    let uploadedSuccessfully = false;
+
+    // 1. Primary: Chunked streaming upload to /api/upload-chunk (1.5MB chunks, no memory crash or proxy payload limits)
     try {
-      setUploadStatus("Enviando arquivo para o servidor...");
-      setUploadProgress(40);
-      
-      const reader = new FileReader();
-      const dataUrlPromise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const dataUrl = await dataUrlPromise;
-      setUploadProgress(70);
+      setUploadStatus("Enviando arquivo em pedaços para o servidor...");
+      const chunkSize = 1.5 * 1024 * 1024; // 1.5MB per chunk
+      const totalChunks = Math.ceil(file.size / chunkSize);
+      const uploadId = `up_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: file.name,
-          dataUrl: dataUrl
-        })
-      });
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(file.size, start + chunkSize);
+        const chunkBlob = file.slice(start, end);
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.url) {
-          finalUrl = result.url;
+        const currentPct = Math.min(95, Math.round(((i + 1) / totalChunks) * 95));
+        setUploadProgress(currentPct);
+        setUploadStatus(`Enviando parte ${i + 1} de ${totalChunks} (${currentPct}%)...`);
+
+        const res = await fetch('/api/upload-chunk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'x-upload-id': uploadId,
+            'x-chunk-index': String(i),
+            'x-total-chunks': String(totalChunks),
+            'x-filename': encodeURIComponent(file.name)
+          },
+          body: chunkBlob
+        });
+
+        if (!res.ok) {
+          throw new Error(`Falha no envio da parte ${i + 1}: HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (data.done && data.url) {
+          finalUrl = data.url;
           uploadedSuccessfully = true;
           setUploadProgress(100);
-          setUploadStatus("Arquivo salvo com sucesso!");
+          setUploadStatus("Arquivo salvo com sucesso no servidor!");
+          try {
+            await saveLocalFile(finalUrl, file);
+          } catch (_) {}
+          break;
         }
       }
-    } catch (serverErr) {
-      console.warn("Upload no servidor /api/upload falhou, usando alternativas:", serverErr);
+    } catch (chunkErr) {
+      console.warn("Upload chunked falhou, tentando alternativas:", chunkErr);
     }
 
-    // 3. If server upload wasn't used or failed, try Supabase Storage
+    // 2. Secondary fallback: direct /api/upload if file is <= 15MB
+    if (!uploadedSuccessfully && file.size <= 15 * 1024 * 1024) {
+      try {
+        setUploadStatus("Tentando envio direto...");
+        const reader = new FileReader();
+        const dataUrlPromise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const dataUrl = await dataUrlPromise;
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, dataUrl })
+        });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.url) {
+            finalUrl = result.url;
+            uploadedSuccessfully = true;
+            setUploadProgress(100);
+            setUploadStatus("Arquivo salvo com sucesso!");
+          }
+        }
+      } catch (directErr) {
+        console.warn("Fallback direto falhou:", directErr);
+      }
+    }
+
+    // 3. Fallback: Supabase Storage
     if (!uploadedSuccessfully && isConfigured) {
       try {
-        setUploadStatus("Enviando para o Supabase Storage...");
+        setUploadStatus("Tentando Supabase Storage...");
         const filePath = `courses/${type}s/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         const { error } = await supabase.storage
           .from('videos-sistema')
@@ -2784,10 +3186,10 @@ const AdminView: React.FC<{
       }
     }
 
-    // 4. Try Firebase Storage if still not uploaded
+    // 4. Fallback: Firebase Storage
     if (!uploadedSuccessfully) {
       try {
-        setUploadStatus("Enviando para o Firebase Storage...");
+        setUploadStatus("Tentando Firebase Storage...");
         const storageRef = ref(storage, `courses/${type}s/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
         const snapshot = await uploadBytes(storageRef, file);
         finalUrl = await getDownloadURL(snapshot.ref);
@@ -2799,11 +3201,11 @@ const AdminView: React.FC<{
       }
     }
 
-    // 5. Fallback: use instantBlobUrl or localId if cloud/server failed
+    // 5. Ultimate Fallback: local blob & indexedDB
     if (!finalUrl) {
       finalUrl = instantBlobUrl || localId;
       setUploadProgress(100);
-      setUploadStatus("Mídia carregada localmente.");
+      setUploadStatus("Mídia pronta para reprodução local!");
     }
 
     // Set URL and auto-fill defaults
@@ -2824,18 +3226,32 @@ const AdminView: React.FC<{
       setIsUploading(false);
       setUploadStatus('');
       setUploadProgress(0);
-    }, 1000);
+    }, 1200);
   };
 
   const handleSubmitUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (newUser.name && newUser.email) {
+      const allowedSectors = newUser.allowedSectors && newUser.allowedSectors.length > 0 
+        ? newUser.allowedSectors 
+        : ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'];
+
       if (editingUser) {
-        onUpdateUser({ ...editingUser, ...newUser });
+        onUpdateUser({ ...editingUser, ...newUser, allowedSectors });
       } else {
-        onAddUser({ id: Math.random().toString(36).substr(2, 9), ...newUser });
+        onAddUser({ 
+          id: Math.random().toString(36).substr(2, 9), 
+          ...newUser, 
+          allowedSectors 
+        });
       }
-      setNewUser({ name: '', email: '', password: '', role: 'user' });
+      setNewUser({ 
+        name: '', 
+        email: '', 
+        password: '', 
+        role: 'user', 
+        allowedSectors: ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'] 
+      });
       setIsAdding(false);
       setEditingUser(null);
     }
@@ -2899,12 +3315,13 @@ const AdminView: React.FC<{
     );
 
     const finalDuration = newCourse.duration?.trim() || "15 min";
-    const finalDescription = newCourse.description?.trim() || `Material didático e procedimentos práticos no sistema ${newCourse.system}.`;
+    const finalDescription = newCourse.description?.trim() || `Material didático e procedimentos práticos no setor ${newCourse.sector || 'Finanças'} (${newCourse.system}).`;
 
     const courseData: Course = {
       id: editingCourse ? editingCourse.id : `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       title: newCourse.title.trim(),
       system: newCourse.system,
+      sector: newCourse.sector || 'Finanças',
       duration: finalDuration,
       difficulty: newCourse.difficulty,
       thumbnail: finalThumbnail,
@@ -2922,7 +3339,7 @@ const AdminView: React.FC<{
         onAddCourse(courseData);
         alert("Vídeo-aula cadastrada com sucesso!");
       }
-      setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' });
+      setNewCourse({ title: '', system: '7Edu', sector: 'Finanças', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' });
       setIsAdding(false);
       setEditingCourse(null);
     } catch (err: any) {
@@ -2932,7 +3349,15 @@ const AdminView: React.FC<{
 
   const handleEditUser = (user: User) => {
     setEditingUser(user);
-    setNewUser({ name: user.name, email: user.email, password: user.password || '', role: user.role });
+    setNewUser({ 
+      name: user.name, 
+      email: user.email, 
+      password: user.password || '', 
+      role: user.role,
+      allowedSectors: user.allowedSectors && user.allowedSectors.length > 0
+        ? user.allowedSectors
+        : ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial']
+    });
     setIsBulk(false);
     setIsAdding(true);
   };
@@ -2942,6 +3367,7 @@ const AdminView: React.FC<{
     setNewCourse({ 
       title: course.title, 
       system: course.system, 
+      sector: course.sector || 'Finanças',
       duration: course.duration, 
       difficulty: course.difficulty, 
       thumbnail: course.thumbnail,
@@ -2972,6 +3398,90 @@ const AdminView: React.FC<{
     setBulkText('');
     setIsAdding(false);
     setIsBulk(false);
+  };
+
+  const handleBulkCourseFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBulkCourseText(reader.result as string);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkCourseSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const lines = bulkCourseText.split('\n').filter(line => line.trim() !== '');
+    let addedCount = 0;
+    lines.forEach(line => {
+      const parts = line.includes('|') 
+        ? line.split('|').map(s => s.trim())
+        : line.includes(';') 
+          ? line.split(';').map(s => s.trim())
+          : line.includes('\t')
+            ? line.split('\t').map(s => s.trim())
+            : line.split(',').map(s => s.trim());
+
+      if (parts.length >= 2) {
+        const title = parts[0];
+        let system: '7Edu' | 'TOTVS' = '7Edu';
+        let videoUrl = '';
+        let duration = '15 min';
+        let pdfUrl = '';
+
+        if (parts[1]?.toLowerCase().includes('totvs')) {
+          system = 'TOTVS';
+          videoUrl = parts[2] || '';
+          duration = parts[3] || '15 min';
+          pdfUrl = parts[4] || '';
+        } else if (parts[1]?.toLowerCase().includes('7edu')) {
+          system = '7Edu';
+          videoUrl = parts[2] || '';
+          duration = parts[3] || '15 min';
+          pdfUrl = parts[4] || '';
+        } else {
+          videoUrl = parts[1] || '';
+          if (parts[2]?.toLowerCase().includes('totvs')) system = 'TOTVS';
+          duration = parts[3] || '15 min';
+          pdfUrl = parts[4] || '';
+        }
+
+        let sector: SectorType = 'Finanças';
+        parts.forEach(part => {
+          const lower = part.toLowerCase();
+          if (lower.includes('contabil') || lower.includes('contabilidade')) sector = 'Contabilidade';
+          else if (lower.includes('secretar') || lower.includes('secretaria')) sector = 'Secretaria';
+          else if (lower.includes('comercial')) sector = 'Comercial';
+          else if (lower.includes('finan') || lower.includes('finanças') || lower.includes('financas')) sector = 'Finanças';
+        });
+
+        const cleanVideo = normalizeVideoUrl(videoUrl);
+        if (cleanVideo) {
+          onAddCourse({
+            id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            title,
+            system,
+            sector,
+            duration: duration || "15 min",
+            difficulty: 'Iniciante',
+            thumbnail: system === '7Edu'
+              ? "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
+              : "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80",
+            videoUrl: cleanVideo,
+            pdfUrl: pdfUrl ? normalizeVideoUrl(pdfUrl) : '',
+            description: `Procedimentos e rotinas práticas no setor ${sector} (${system}).`,
+            createdAt: Date.now()
+          });
+          addedCount++;
+        }
+      }
+    });
+
+    alert(`${addedCount} aula(s) importada(s) com sucesso!`);
+    setBulkCourseText('');
+    setIsAdding(false);
+    setIsCourseBulk(false);
   };
 
   return (
@@ -3016,14 +3526,23 @@ const AdminView: React.FC<{
                 <Plus size={20} /> Novo Usuário
               </button>
             </>
-          ) : (
-            <button 
-              onClick={() => { setIsAdding(true); setEditingCourse(null); setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '' }); }}
-              className="flex items-center justify-center gap-2 bg-[#3B82F6] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#2563EB] transition-colors shadow-lg shadow-blue-200"
-            >
-              <Plus size={20} /> Nova Aula
-            </button>
-          )}
+          ) : adminTab === 'courses' ? (
+            <>
+              <button 
+                onClick={() => { setIsAdding(true); setIsCourseBulk(true); setEditingCourse(null); }}
+                className="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-5 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm"
+                title="Importar lista de aulas via texto ou arquivo CSV/TXT"
+              >
+                <FileUp size={18} /> Importar em Lote
+              </button>
+              <button 
+                onClick={() => { setIsAdding(true); setIsCourseBulk(false); setEditingCourse(null); setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '' }); }}
+                className="flex items-center justify-center gap-2 bg-[#3B82F6] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#2563EB] transition-colors shadow-lg shadow-blue-200 text-sm"
+              >
+                <Plus size={20} /> Nova Aula
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -3092,6 +3611,7 @@ const AdminView: React.FC<{
                   <th className="px-6 py-4 min-w-[200px]">Nome</th>
                   <th className="px-6 py-4 min-w-[200px]">E-mail</th>
                   <th className="px-6 py-4">Cargo</th>
+                  <th className="px-6 py-4 min-w-[240px]">Setores Liberados</th>
                   <th className="px-6 py-4 text-right">Ações</th>
                 </tr>
               </thead>
@@ -3126,6 +3646,33 @@ const AdminView: React.FC<{
                       }`}>
                         {user.role?.toLowerCase() === 'admin' ? 'Administrador' : 'Usuário'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {user.role?.toLowerCase() === 'admin' || user.email === 'mateusjhonata123@gmail.com' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          <ShieldCheck size={13} /> Acesso Total (Todos os Setores)
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {user.allowedSectors && user.allowedSectors.length > 0 ? (
+                            user.allowedSectors.map((sector) => (
+                              <span 
+                                key={sector} 
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                                  sector === 'Finanças' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  sector === 'Contabilidade' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                  sector === 'Secretaria' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                  'bg-purple-50 text-purple-700 border border-purple-200'
+                                }`}
+                              >
+                                {sector}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Nenhum liberado</span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
@@ -3173,13 +3720,21 @@ const AdminView: React.FC<{
                   Aulas divididas em 2 colunas por sistema e ordenadas em ordem alfabética (A-Z).
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   7Edu: {eduCourses.length}
                 </span>
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   TOTVS: {totvsCourses.length}
                 </span>
+                {SECTORS.map(sec => {
+                  const cnt = courses.filter(c => (c.sector || 'Finanças') === sec).length;
+                  return (
+                    <span key={sec} className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                      {sec}: {cnt}
+                    </span>
+                  );
+                })}
               </div>
             </div>
 
@@ -3222,6 +3777,15 @@ const AdminView: React.FC<{
                               {course.title}
                             </span>
                             <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                course.sector === 'Contabilidade' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+                                course.sector === 'Secretaria' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                course.sector === 'Comercial' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
+                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              }`}>
+                                {course.sector || 'Finanças'}
+                              </span>
+                              <span>•</span>
                               <span>{course.difficulty}</span>
                               {course.duration && (
                                 <>
@@ -3293,6 +3857,15 @@ const AdminView: React.FC<{
                               {course.title}
                             </span>
                             <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                course.sector === 'Contabilidade' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+                                course.sector === 'Secretaria' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                course.sector === 'Comercial' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
+                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              }`}>
+                                {course.sector || 'Finanças'}
+                              </span>
+                              <span>•</span>
                               <span>{course.difficulty}</span>
                               {course.duration && (
                                 <>
@@ -3512,9 +4085,9 @@ const AdminView: React.FC<{
                 <h3 className="text-xl font-bold text-slate-900">
                   {adminTab === 'users' 
                     ? (isBulk ? 'Importar Vários Usuários' : editingUser ? 'Editar Usuário' : 'Novo Usuário')
-                    : (editingCourse ? 'Editar Aula' : 'Nova Aula')}
+                    : (isCourseBulk ? 'Importar Aulas em Lote (Links / Arquivo)' : editingCourse ? 'Editar Aula' : 'Nova Aula')}
                 </h3>
-                <button onClick={() => { setIsAdding(false); setEditingUser(null); setEditingCourse(null); }} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => { setIsAdding(false); setEditingUser(null); setEditingCourse(null); setIsCourseBulk(false); }} className="text-slate-400 hover:text-slate-600">
                   <X size={24} />
                 </button>
               </div>
@@ -3554,12 +4127,117 @@ const AdminView: React.FC<{
                         <label className="block text-sm font-bold text-slate-700 mb-1">Cargo / Permissão</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value as any})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all appearance-none bg-white">
                           <option value="user">Usuário Padrão</option>
-                          <option value="admin">Administrador</option>
+                          <option value="admin">Administrador (Acesso Total)</option>
                         </select>
                       </div>
+
+                      {/* Setores Liberados para Acesso */}
+                      <div className="pt-3 border-t border-slate-100">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-sm font-bold text-slate-700">Setores Liberados para Acesso *</label>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const all: SectorType[] = ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'];
+                              const hasAll = (newUser.allowedSectors || []).length === all.length;
+                              setNewUser({
+                                ...newUser,
+                                allowedSectors: hasAll ? [] : all
+                              });
+                            }}
+                            className="text-xs font-bold text-[#3B82F6] hover:underline"
+                          >
+                            {(newUser.allowedSectors || []).length === 4 ? 'Desmarcar Todos' : 'Liberar Todos os 4 Setores'}
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-2.5">
+                          O usuário terá acesso apenas aos vídeos e aulas cadastrados nos setores selecionados abaixo:
+                        </p>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {SECTORS.map((sector) => {
+                            const isSelected = (newUser.allowedSectors || []).includes(sector);
+                            return (
+                              <label 
+                                key={sector} 
+                                className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                                  isSelected 
+                                    ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-sm' 
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                <input 
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const current = newUser.allowedSectors || [];
+                                    if (e.target.checked) {
+                                      setNewUser({ ...newUser, allowedSectors: [...current, sector] });
+                                    } else {
+                                      setNewUser({ ...newUser, allowedSectors: current.filter(s => s !== sector) });
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded text-[#3B82F6] focus:ring-[#3B82F6]"
+                                />
+                                <div className="flex items-center gap-1.5 text-xs font-bold">
+                                  {sector === 'Finanças' && <DollarSign size={14} className="text-emerald-600" />}
+                                  {sector === 'Contabilidade' && <Calculator size={14} className="text-indigo-600" />}
+                                  {sector === 'Secretaria' && <FileSpreadsheet size={14} className="text-amber-600" />}
+                                  {sector === 'Comercial' && <Briefcase size={14} className="text-purple-600" />}
+                                  <span>{sector}</span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       <button type="submit" className="w-full bg-[#3B82F6] text-white py-4 rounded-xl font-bold hover:bg-[#2563EB] transition-colors mt-4">{editingUser ? 'Salvar Alterações' : 'Confirmar Cadastro'}</button>
                     </form>
                   )
+                ) : isCourseBulk ? (
+                  <form onSubmit={handleBulkCourseSubmit} className="p-6 space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-bold text-slate-700">Lista de Aulas ou Arquivo</label>
+                        <label className="cursor-pointer text-xs font-bold text-[#3B82F6] hover:underline flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                          <Upload size={13} />
+                          Carregar Arquivo (.csv / .txt)
+                          <input 
+                            type="file" 
+                            accept=".csv,.txt" 
+                            className="hidden" 
+                            onChange={handleBulkCourseFileUpload} 
+                          />
+                        </label>
+                      </div>
+                      <p className="text-xs text-slate-500 mb-2 leading-relaxed">
+                        Cole uma aula por linha. Aceita links do YouTube, Google Drive, OneDrive, Vimeo, Loom ou vídeos diretos.<br />
+                        <span className="font-semibold text-slate-700">Formato:</span> <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-mono text-[11px]">Título | Sistema (7Edu ou TOTVS) | Link do Vídeo | Duração | Link PDF</code>
+                      </p>
+                      <textarea 
+                        required
+                        value={bulkCourseText}
+                        onChange={(e) => setBulkCourseText(e.target.value)}
+                        className="w-full h-48 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all resize-none font-mono text-xs text-slate-800"
+                        placeholder="Exemplos:&#10;Gestão Financeira e Contas | TOTVS | https://www.youtube.com/watch?v=dQw4w9WgXcQ | 15 min&#10;Cadastro de Alunos e Matrículas | 7Edu | https://drive.google.com/file/d/1a2b3c/view | 20 min&#10;Emissão de Boletos e Remessa | 7Edu | https://vimeo.com/123456789 | 12 min"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsAdding(false); setIsCourseBulk(false); }}
+                        className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button 
+                        type="submit" 
+                        className="flex-1 bg-[#3B82F6] text-white py-3.5 rounded-xl font-bold hover:bg-[#2563EB] transition-colors shadow-md shadow-blue-500/20"
+                      >
+                        Importar Aulas
+                      </button>
+                    </div>
+                  </form>
                 ) : (
                   <form onSubmit={handleSubmitCourse} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     <div>
@@ -3574,7 +4252,7 @@ const AdminView: React.FC<{
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">Sistema</label>
                         <select 
@@ -3584,6 +4262,19 @@ const AdminView: React.FC<{
                         >
                           <option value="7Edu">7Edu</option>
                           <option value="TOTVS">TOTVS</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Setor do Treinamento *</label>
+                        <select 
+                          value={newCourse.sector || 'Finanças'} 
+                          onChange={(e) => setNewCourse({...newCourse, sector: e.target.value as any})} 
+                          className="w-full px-3 py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 font-bold text-[#2563EB] text-sm focus:ring-2 focus:ring-[#3B82F6]"
+                        >
+                          <option value="Finanças">💰 Finanças</option>
+                          <option value="Contabilidade">📊 Contabilidade</option>
+                          <option value="Secretaria">📋 Secretaria</option>
+                          <option value="Comercial">💼 Comercial</option>
                         </select>
                       </div>
                       <div>
@@ -3831,6 +4522,31 @@ const AdminView: React.FC<{
   );
 };
 
+const extractYouTubeId = (url: string): string => {
+  if (!url) return '';
+  const clean = url.trim();
+  try {
+    const parsed = new URL(clean.startsWith('http') ? clean : `https://${clean}`);
+    const v = parsed.searchParams.get('v');
+    if (v && v.length === 11) return v;
+  } catch (_) {}
+  const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i;
+  const match = clean.match(regExp);
+  if (match && match[1]) return match[1];
+  if (clean.includes('youtube') || clean.includes('youtu.be')) {
+    const generalMatch = clean.match(/([\w-]{11})/);
+    if (generalMatch && generalMatch[1]) return generalMatch[1];
+  }
+  return '';
+};
+
+const extractVimeoId = (url: string): string => {
+  const match = url.match(/vimeo(?:\.com|\.com\/manage\/videos|\.com\/channels\/[^\/]+|\.com\/groups\/[^\/]+\/videos)?\/(\d+)/i) || 
+                url.match(/player\.vimeo\.com\/video\/(\d+)/i) || 
+                url.match(/vimeo\.com\/(\d+)/i);
+  return match && match[1] ? match[1] : '';
+};
+
 const isDirectVideo = (url: string) => {
   if (!url) return false;
   const lower = url.trim().toLowerCase();
@@ -3839,8 +4555,9 @@ const isDirectVideo = (url: string) => {
     lower.includes('youtube.com') || lower.includes('youtu.be') ||
     lower.includes('vimeo.com') || lower.includes('loom.com') ||
     lower.includes('drive.google.com') || lower.includes('sharepoint.com') ||
-    lower.includes('onedrive.live.com') || lower.includes('dailymotion.com') ||
-    lower.includes('streamable.com')
+    lower.includes('onedrive.live.com') || lower.includes('1drv.ms') ||
+    lower.includes('dailymotion.com') || lower.includes('streamable.com') ||
+    lower.includes('wistia.net') || lower.includes('vidyard.com')
   ) {
     return false;
   }
@@ -3856,10 +4573,15 @@ const isDirectVideo = (url: string) => {
     lower.includes('.ogg') ||
     lower.includes('.mov') ||
     lower.includes('.m3u8') ||
+    lower.includes('.m4v') ||
     lower.includes('supabase.co') ||
     lower.includes('firebasestorage.googleapis.com') ||
     lower.includes('dropbox.com') ||
-    lower.includes('raw=1')
+    lower.includes('raw=1') ||
+    lower.includes('s3.amazonaws.com') ||
+    lower.includes('cloudinary.com') ||
+    lower.includes('b-cdn.net') ||
+    lower.includes('blob.core.windows.net')
   );
 };
 
@@ -3871,51 +4593,58 @@ const getUrlType = (url: string) => {
   if (parsed.includes('loom.com')) return 'Loom';
   if (parsed.includes('streamable.com')) return 'Streamable';
   if (parsed.includes('dailymotion.com')) return 'DailyMotion';
+  if (parsed.includes('wistia.net') || parsed.includes('wistia.com')) return 'Wistia';
+  if (parsed.includes('vidyard.com')) return 'Vidyard';
   if (parsed.includes('sharepoint.com')) return 'SharePoint';
-  if (parsed.includes('onedrive.live.com')) return 'OneDrive';
+  if (parsed.includes('onedrive.live.com') || parsed.includes('1drv.ms')) return 'OneDrive';
   if (parsed.includes('drive.google.com')) return 'Google Drive';
+  if (parsed.includes('dropbox.com')) return 'Dropbox (MP4 Direto)';
   if (parsed.includes('supabase.co')) return 'Supabase Storage';
   if (parsed.includes('firebasestorage.googleapis.com')) return 'Firebase Storage';
   if (parsed.startsWith('/uploads/') || parsed.includes('/uploads/')) return 'Arquivo no Servidor (MP4)';
   if (parsed.startsWith('blob:') || isDirectVideo(url)) return 'Vídeo Direto / MP4 (HTML5)';
-  return 'Servidor de Mídia Externo';
+  return 'Servidor de Mídia / Web';
 };
 
 const getEmbedUrl = (url: string) => {
   if (!url) return '';
   let parsedUrl = url.trim();
 
-  // 1. YouTube (watch, shorts, live, shortlink, embed)
+  // If pasted with iframe tag, extract src
+  const iframeMatch = parsedUrl.match(/src=["']([^"']+)["']/i);
+  if (iframeMatch && iframeMatch[1]) {
+    parsedUrl = iframeMatch[1].trim().replace(/&amp;/g, '&');
+  }
+
+  // 1. YouTube (watch, shorts, live, shortlink, embed, mobile)
   if (parsedUrl.includes('youtube.com') || parsedUrl.includes('youtu.be')) {
-    let videoId = '';
-    if (parsedUrl.includes('watch?v=')) {
-      videoId = parsedUrl.split('watch?v=')[1]?.split('&')[0] || '';
-    } else if (parsedUrl.includes('youtu.be/')) {
-      videoId = parsedUrl.split('youtu.be/')[1]?.split('?')[0] || '';
-    } else if (parsedUrl.includes('/shorts/')) {
-      videoId = parsedUrl.split('/shorts/')[1]?.split('?')[0] || '';
-    } else if (parsedUrl.includes('/live/')) {
-      videoId = parsedUrl.split('/live/')[1]?.split('?')[0] || '';
-    } else if (parsedUrl.includes('/embed/')) {
-      videoId = parsedUrl.split('/embed/')[1]?.split('?')[0] || '';
-    }
+    const videoId = extractYouTubeId(parsedUrl);
     if (videoId) {
-      return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1`;
+      let embed = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+      const timeMatch = parsedUrl.match(/[?&]t=(\d+)s?/);
+      if (timeMatch && timeMatch[1]) {
+        embed += `&start=${timeMatch[1]}`;
+      }
+      return embed;
     }
     return parsedUrl;
   }
 
   // 2. Vimeo
   if (parsedUrl.includes('vimeo.com')) {
-    const match = parsedUrl.match(/vimeo\.com\/(\d+)/);
-    if (match && match[1]) {
-      return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
+    const vimeoId = extractVimeoId(parsedUrl);
+    if (vimeoId) {
+      return `https://player.vimeo.com/video/${vimeoId}?autoplay=1`;
     }
     return parsedUrl;
   }
 
   // 3. Loom
   if (parsedUrl.includes('loom.com')) {
+    const loomMatch = parsedUrl.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9_-]+)/);
+    if (loomMatch && loomMatch[1]) {
+      return `https://www.loom.com/embed/${loomMatch[1]}?autoplay=1`;
+    }
     if (parsedUrl.includes('/share/')) {
       return parsedUrl.replace('/share/', '/embed/');
     }
@@ -3954,12 +4683,14 @@ const getEmbedUrl = (url: string) => {
     return parsedUrl;
   }
 
-  // 7. Dropbox
+  // 7. Dropbox (Convert to direct streaming link)
   if (parsedUrl.includes('dropbox.com')) {
-    if (parsedUrl.includes('dl=0')) {
-      return parsedUrl.replace('dl=0', 'raw=1');
+    let clean = parsedUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com');
+    clean = clean.replace('dl=0', 'raw=1');
+    if (!clean.includes('raw=1')) {
+      clean += clean.includes('?') ? '&raw=1' : '?raw=1';
     }
-    return parsedUrl;
+    return clean;
   }
 
   // 8. SharePoint and OneDrive
@@ -3987,10 +4718,15 @@ const getEmbedUrl = (url: string) => {
     }
   }
 
-  if (parsedUrl.includes('onedrive.live.com')) {
-    if (parsedUrl.includes('Embed.aspx')) return parsedUrl;
+  if (parsedUrl.includes('onedrive.live.com') || parsedUrl.includes('1drv.ms')) {
+    if (parsedUrl.includes('embed') || parsedUrl.includes('Embed.aspx')) return parsedUrl;
     try {
       const urlObj = new URL(parsedUrl);
+      const resid = urlObj.searchParams.get('resid') || urlObj.searchParams.get('id');
+      const authkey = urlObj.searchParams.get('authkey');
+      if (resid) {
+        return `https://onedrive.live.com/embed?resid=${resid}${authkey ? `&authkey=${authkey}` : ''}&em=2`;
+      }
       urlObj.searchParams.set('action', 'embedview');
       return urlObj.toString();
     } catch (e) {
@@ -3998,6 +4734,22 @@ const getEmbedUrl = (url: string) => {
         parsedUrl += parsedUrl.includes('?') ? '&action=embedview' : '?action=embedview';
       }
       return parsedUrl;
+    }
+  }
+
+  // 9. Wistia
+  if (parsedUrl.includes('wistia.com') || parsedUrl.includes('wistia.net')) {
+    const wistiaMatch = parsedUrl.match(/(?:wistia\.com\/medias|wistia\.net\/embed\/iframe)\/([a-zA-Z0-9]+)/);
+    if (wistiaMatch && wistiaMatch[1]) {
+      return `https://fast.wistia.net/embed/iframe/${wistiaMatch[1]}`;
+    }
+  }
+
+  // 10. Vidyard
+  if (parsedUrl.includes('vidyard.com')) {
+    const vidyardMatch = parsedUrl.match(/(?:vidyard\.com\/watch|play\.vidyard\.com)\/([a-zA-Z0-9_-]+)/);
+    if (vidyardMatch && vidyardMatch[1]) {
+      return `https://play.vidyard.com/${vidyardMatch[1]}`;
     }
   }
 

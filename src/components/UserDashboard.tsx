@@ -39,7 +39,7 @@ interface UserDashboardProps {
   userName: string;
   courses: Course[];
   completedCourses: string[];
-  onNavigateToTab: (tab: 'Home' | '7Edu' | 'TOTVS' | 'Todos' | 'Certificados' | 'GeminiVideo') => void;
+  onNavigateToTab: (tab: any) => void;
   onOpenMedia?: (course: Course, type: 'video' | 'pdf') => void;
   onResetEmpenho?: () => void;
   onEliminarCertificados?: () => void;
@@ -63,7 +63,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   // Métricas do aluno
   const totalCourses = courses.length || 1;
-  const completedCount = completedCourses.length;
+  const completedCount = courses.filter(c => completedCourses.includes(c.id)).length;
   const overallPercentage = Math.round((completedCount / totalCourses) * 100);
 
   const courses7Edu = courses.filter(c => c.system === '7Edu');
@@ -651,7 +651,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                             ? isDark ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800/60' : 'bg-indigo-100 text-indigo-900 border-indigo-200'
                             : isDark ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60' : 'bg-emerald-100 text-emerald-900 border-emerald-200'
                         }`}>
-                          {course.system} • {course.duration}
+                          {course.system} {course.sector ? `• ${course.sector}` : ''} • {course.duration}
                         </span>
                         <h5 className="text-xs font-black text-slate-900 dark:text-white line-clamp-1 mt-1">
                           {course.title}

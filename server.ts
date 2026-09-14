@@ -10,14 +10,75 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Ensure public/uploads directory exists
+// Ensure public/uploads directory and temp directory exist
 const uploadsDir = path.join(process.cwd(), "public", "uploads");
+const tempUploadsDir = path.join(uploadsDir, ".temp");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+if (!fs.existsSync(tempUploadsDir)) {
+  fs.mkdirSync(tempUploadsDir, { recursive: true });
+}
 
-// Serve static uploads
-app.use("/uploads", express.static(uploadsDir));
+// Serve static uploads with Accept-Ranges for smooth HTML5 video scrubbing
+app.use("/uploads", (req, res, next) => {
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  next();
+}, express.static(uploadsDir));
+
+// Chunked raw binary upload endpoint (safe for any file size, bypasses proxy limits)
+app.post("/api/upload-chunk", express.raw({ type: "*/*", limit: "15mb" }), async (req, res) => {
+  try {
+    const uploadId = (req.headers["x-upload-id"] as string || "").replace(/[^a-zA-Z0-9_-]/g, "");
+    const chunkIndex = parseInt(req.headers["x-chunk-index"] as string || "0", 10);
+    const totalChunks = parseInt(req.headers["x-total-chunks"] as string || "1", 10);
+    const rawFilename = decodeURIComponent(req.headers["x-filename"] as string || "video.mp4");
+    
+    if (!uploadId) {
+      return res.status(400).json({ error: "Cabeçalho 'x-upload-id' é obrigatório." });
+    }
+
+    const chunkData = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
+    const tempFilePath = path.join(tempUploadsDir, `chunk_${uploadId}`);
+
+    // If first chunk, create or truncate temp file
+    if (chunkIndex === 0) {
+      await fs.promises.writeFile(tempFilePath, chunkData);
+    } else {
+      await fs.promises.appendFile(tempFilePath, chunkData);
+    }
+
+    // If last chunk, move to final uploads directory
+    if (chunkIndex === totalChunks - 1) {
+      const sanitizedName = `${Date.now()}_${rawFilename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const finalFilePath = path.join(uploadsDir, sanitizedName);
+      await fs.promises.rename(tempFilePath, finalFilePath);
+
+      const stats = await fs.promises.stat(finalFilePath);
+      const publicUrl = `/uploads/${sanitizedName}`;
+      console.log(`[Upload Chunked] Arquivo finalizado: ${finalFilePath} (${stats.size} bytes) -> URL: ${publicUrl}`);
+
+      return res.json({
+        success: true,
+        done: true,
+        url: publicUrl,
+        filename: sanitizedName,
+        size: stats.size
+      });
+    }
+
+    return res.json({
+      success: true,
+      done: false,
+      chunkIndex,
+      totalChunks
+    });
+  } catch (error: any) {
+    console.error("Erro no chunked upload:", error);
+    return res.status(500).json({ error: error.message || "Erro ao processar pedaço do arquivo." });
+  }
+});
 
 // Increase payload limits for large video/PDF files (up to 300MB)
 app.use(express.json({ limit: "300mb" }));

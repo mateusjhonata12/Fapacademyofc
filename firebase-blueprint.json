@@ -9,7 +9,12 @@
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "role": { "type": "string", "enum": ["user", "admin"] },
-        "password": { "type": "string" }
+        "password": { "type": "string" },
+        "allowedSectors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of sectors user is allowed to access: Finanças, Contabilidade, Secretaria, Comercial"
+        }
       },
       "required": ["id", "name", "email", "role"]
     },
@@ -21,6 +26,7 @@
         "id": { "type": "string" },
         "title": { "type": "string" },
         "system": { "type": "string", "enum": ["7Edu", "TOTVS"] },
+        "sector": { "type": "string", "enum": ["Finanças", "Contabilidade", "Secretaria", "Comercial"] },
         "duration": { "type": "string" },
         "difficulty": { "type": "string" },
         "thumbnail": { "type": "string" },

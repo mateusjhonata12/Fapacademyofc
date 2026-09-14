@@ -1,9 +1,14 @@
 export type SystemType = '7Edu' | 'TOTVS';
 
+export type SectorType = 'Finanças' | 'Contabilidade' | 'Secretaria' | 'Comercial';
+
+export const SECTORS: SectorType[] = ['Finanças', 'Contabilidade', 'Secretaria', 'Comercial'];
+
 export interface Course {
   id: string;
   title: string;
   system: SystemType;
+  sector?: SectorType;
   duration: string;
   difficulty: 'Iniciante' | 'Intermediário' | 'Avançado';
   thumbnail: string;
@@ -20,6 +25,7 @@ export interface User {
   password?: string;
   role: 'admin' | 'user';
   completedCourses?: string[];
+  allowedSectors?: SectorType[];
 }
 
 export type CertificateType = '7Edu' | 'TOTVS' | 'Financas';
