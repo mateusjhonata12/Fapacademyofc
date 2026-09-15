@@ -41,6 +41,7 @@ import {
   RotateCw,
   Pause,
   Maximize,
+  Minimize2,
   ArrowBigLeft,
   ArrowBigRight,
   ExternalLink,
@@ -1663,7 +1664,7 @@ export default function App() {
         </header>
 
         {/* Área de Conteúdo Dinâmica */}
-        <div className="flex-1 overflow-y-auto" onScroll={handleContentScroll}>
+        <div className="flex-1 overflow-y-auto pb-20 lg:pb-0" onScroll={handleContentScroll}>
           <AnimatePresence mode="wait">
             {activeTab === 'Home' ? (
               <HomeView 
@@ -1930,13 +1931,13 @@ export default function App() {
 
                     {/* Filtro Rápido de Setor se estiver em abas gerais ou de sistema */}
                     {!SECTORS.includes(activeTab as any) && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`text-xs font-semibold mr-1 flex items-center gap-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 no-scrollbar sm:flex-wrap max-w-full -mx-4 px-4 sm:mx-0 sm:px-0">
+                        <span className={`text-xs font-semibold mr-1 flex items-center gap-1 shrink-0 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                           <Filter size={13} /> Setor:
                         </span>
                         <button
                           onClick={() => setSelectedSectorFilter('Todos')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 active:scale-95 ${
                             selectedSectorFilter === 'Todos'
                               ? 'bg-blue-600 text-white shadow-sm'
                               : theme === 'dark'
@@ -1954,7 +1955,7 @@ export default function App() {
                               key={sec}
                               disabled={!isAllowed}
                               onClick={() => setSelectedSectorFilter(sec)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 ${
                                 !isAllowed
                                   ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-500'
                                   : selectedSectorFilter === sec
@@ -2084,6 +2085,71 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+        {/* Mobile Bottom Navigation Bar - Fast native navigation on mobile devices */}
+        <nav 
+          aria-label="Navegação inferior mobile"
+          className="fixed bottom-0 left-0 right-0 z-30 lg:hidden bg-white/95 dark:bg-[#0B172E]/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-blue-950/80 px-2 py-1 flex items-center justify-around shadow-2xl safe-bottom"
+        >
+          <button
+            onClick={() => { setActiveTab('Home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-w-[56px] active:scale-95 ${
+              activeTab === 'Home' 
+                ? 'text-blue-600 dark:text-blue-400 font-extrabold' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <HomeIcon size={19} className={activeTab === 'Home' ? 'stroke-[2.5]' : 'stroke-2'} />
+            <span className="text-[10px] mt-0.5">Início</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('Todos'); setSelectedSectorFilter('Todos'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-w-[56px] active:scale-95 ${
+              activeTab === 'Todos' || SECTORS.includes(activeTab as any) || activeTab === '7Edu' || activeTab === 'TOTVS'
+                ? 'text-blue-600 dark:text-blue-400 font-extrabold' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <LayoutDashboard size={19} className={activeTab === 'Todos' || SECTORS.includes(activeTab as any) ? 'stroke-[2.5]' : 'stroke-2'} />
+            <span className="text-[10px] mt-0.5">Aulas</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('MeuEmpenho'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-w-[56px] active:scale-95 ${
+              activeTab === 'MeuEmpenho' 
+                ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <BarChart2 size={19} className={activeTab === 'MeuEmpenho' ? 'text-emerald-500 stroke-[2.5]' : 'stroke-2'} />
+            <span className="text-[10px] mt-0.5">Empenho</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('Certificados'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`relative flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-w-[56px] active:scale-95 ${
+              activeTab === 'Certificados' 
+                ? 'text-amber-500 font-extrabold' 
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Award size={19} className={activeTab === 'Certificados' ? 'text-amber-500 stroke-[2.5]' : 'stroke-2'} />
+            <span className="text-[10px] mt-0.5">Diplomas</span>
+            {hasUnlockedCertificates && (
+              <span className="absolute top-0.5 right-2 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-w-[56px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-95"
+            title="Abrir menu lateral"
+          >
+            <Menu size={19} className="stroke-2" />
+            <span className="text-[10px] mt-0.5">Menu</span>
+          </button>
+        </nav>
       </main>
 
       {/* AI Assistant Chatbot with tool and voice capabilities */}
@@ -2792,9 +2858,9 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
       </div>
 
       {/* Conteúdo */}
-      <div className="flex flex-1 flex-col p-5">
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
         <div className="flex justify-between items-start gap-2 mb-2">
-          <h3 className={`text-lg font-bold leading-tight transition-colors ${
+          <h3 className={`text-base sm:text-lg font-bold leading-snug transition-colors ${
             isCompleted 
               ? (theme === 'dark' ? 'text-emerald-400' : 'text-emerald-900') 
               : (theme === 'dark' ? 'text-slate-100 group-hover:text-blue-400' : 'text-slate-900 group-hover:text-[#3B82F6]')
@@ -2803,18 +2869,19 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           </h3>
           <button 
             onClick={() => onToggleComplete(course.id)}
-            className={`p-1 rounded-md transition-colors ${
+            className={`w-9 h-9 shrink-0 flex items-center justify-center rounded-lg transition-colors active:scale-95 ${
               isCompleted 
                 ? 'text-emerald-600 bg-emerald-100/80' 
                 : (theme === 'dark' ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100')
             }`}
             title={isCompleted ? "Marcar como não concluído" : "Marcar como concluído"}
+            aria-label={isCompleted ? "Marcar como não concluído" : "Marcar como concluído"}
           >
-            <CheckCircle2 size={20} />
+            <CheckCircle2 size={22} />
           </button>
         </div>
         
-        <p className={`text-xs line-clamp-2 leading-relaxed mb-4 transition-colors ${
+        <p className={`text-xs line-clamp-2 leading-relaxed mb-3 sm:mb-4 transition-colors ${
           theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
         }`}>
           {course.description || "Esta aula aborda as diretrizes essenciais, instruções e melhores práticas recomendadas para o domínio operacional dos processos administrativos."}
@@ -2834,45 +2901,45 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
         </div>
 
         {/* Ações */}
-        <div className="mt-6 flex flex-col sm:flex-row gap-2">
+        <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row gap-2">
           <button 
             onClick={() => onOpenMedia('video')}
-            className={`flex flex-[2] items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-colors shadow-sm active:scale-95 ${
+            className={`flex flex-[2] items-center justify-center gap-2 rounded-xl py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all shadow-sm active:scale-95 ${
               isCompleted 
                 ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
                 : 'bg-[#3B82F6] text-white hover:bg-[#2563EB]'
             } ${!course.pdfUrl ? 'w-full' : ''}`}
           >
-            <Play size={18} />
+            <Play size={16} fill="currentColor" />
             {isCompleted ? 'Reassistir' : 'Iniciar Aula'}
           </button>
           {course.pdfUrl ? (
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                downloadFile(course.pdfUrl!, `${course.title}.pdf`);
+                onOpenMedia('pdf');
               }}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-all active:scale-95 shadow-sm text-center border ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all active:scale-95 shadow-sm text-center border ${
                 theme === 'dark'
                   ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900 hover:bg-emerald-900/40'
                   : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
               }`}
-              title="Baixar Passo a Passo (PDF)"
+              title="Visualizar Passo a Passo Oficial (PDF)"
             >
-              <Download size={18} className="text-emerald-500" />
+              <FileText size={15} className="text-emerald-500" />
               <span>Passo a Passo</span>
             </button>
           ) : (
             <button 
               disabled
-              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold border cursor-not-allowed ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 sm:py-3 text-xs sm:text-sm font-bold border cursor-not-allowed ${
                 theme === 'dark'
                   ? 'bg-slate-900 text-slate-700 border-slate-950'
                   : 'bg-slate-50 text-slate-300 border-slate-100'
               }`}
               title="Sem Passo a Passo disponível"
             >
-              <FileText size={18} />
+              <FileText size={15} />
               <span>Sem PDF</span>
             </button>
           )}
@@ -4866,10 +4933,23 @@ const extractVimeoId = (url: string): string => {
   return match && match[1] ? match[1] : '';
 };
 
+const extractGoogleDriveId = (url: string) => {
+  if (!url) return null;
+  const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match1 && match1[1]) return match1[1];
+  const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match2 && match2[1]) return match2[1];
+  return null;
+};
+
 const isDirectVideo = (url: string) => {
   if (!url) return false;
   const lower = url.trim().toLowerCase();
   
+  if (lower.includes('/api/stream-drive')) {
+    return true;
+  }
+
   if (
     lower.includes('youtube.com') || lower.includes('youtu.be') ||
     lower.includes('vimeo.com') || lower.includes('loom.com') ||
@@ -5097,12 +5177,14 @@ const MediaModal: React.FC<{
   const [currentTime, setCurrentTime] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isPipActive, setIsPipActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [useIframeFallback, setUseIframeFallback] = useState(false);
   const [videoState, setVideoState] = useState<'loading' | 'playing' | 'paused' | 'error'>('loading');
   const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
@@ -5116,6 +5198,7 @@ const MediaModal: React.FC<{
   useEffect(() => {
     if (!isOpen || !course) return;
     
+    setUseIframeFallback(false);
     let active = true;
     let localVideoUrlBlob = '';
     let localPdfUrlBlob = '';
@@ -5301,8 +5384,19 @@ const MediaModal: React.FC<{
     return parsedUrl;
   };
 
+  const getDirectStreamOrEmbedUrl = (url: string, useFallback: boolean) => {
+    if (!url) return '';
+    if (!useFallback && url.includes('drive.google.com')) {
+      const driveId = extractGoogleDriveId(url);
+      if (driveId) {
+        return `/api/stream-drive?id=${driveId}`;
+      }
+    }
+    return getEmbedUrl(url);
+  };
+
   const videoSrc = resolvedVideoUrl && resolvedVideoUrl !== "" && !resolvedVideoUrl.startsWith('file://')
-    ? getEmbedUrl(resolvedVideoUrl)
+    ? getDirectStreamOrEmbedUrl(resolvedVideoUrl, useIframeFallback)
     : null;
     
   const pdfSrc = resolvedPdfUrl && !resolvedPdfUrl.startsWith('file://') 
@@ -5329,20 +5423,47 @@ const MediaModal: React.FC<{
         videoRef.current.play().then(() => {
           setIsPlaying(true);
           setVideoState('playing');
-        });
+        }).catch(() => {});
       } else {
         videoRef.current.pause();
         setIsPlaying(false);
         setVideoState('paused');
       }
+    } else if (iframeRef.current && iframeRef.current.contentWindow) {
+      const nextPlay = !isPlaying;
+      setIsPlaying(nextPlay);
+      setVideoState(nextPlay ? 'playing' : 'paused');
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: nextPlay ? 'playVideo' : 'pauseVideo', args: [] }),
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ method: nextPlay ? 'play' : 'pause' }),
+          '*'
+        );
+      } catch {}
+    } else {
+      setIsPlaying(prev => !prev);
     }
   };
 
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
+    setCurrentTime(time);
     if (videoRef.current) {
       videoRef.current.currentTime = time;
-      setCurrentTime(time);
+    } else if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: 'seekTo', args: [time, true] }),
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ method: 'seekTo', value: time }),
+          '*'
+        );
+      } catch {}
     }
   };
 
@@ -5381,10 +5502,24 @@ const MediaModal: React.FC<{
   };
 
   const handleRateChange = (rate: number) => {
+    setPlaybackRate(rate);
     if (videoRef.current) {
       videoRef.current.playbackRate = rate;
-      setPlaybackRate(rate);
       addLog(`Velocidade de reprodução alterada para ${rate}x.`);
+    } else if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ event: 'command', func: 'setPlaybackRate', args: [rate] }),
+          '*'
+        );
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({ method: 'setPlaybackRate', value: rate }),
+          '*'
+        );
+      } catch {}
+      addLog(`Velocidade selecionada: ${rate}x.`);
+    } else {
+      addLog(`Velocidade selecionada: ${rate}x.`);
     }
   };
 
@@ -5424,56 +5559,116 @@ const MediaModal: React.FC<{
     }
   };
 
-  const toggleFullscreen = () => {
-    if (containerRef.current) {
-      if (!document.fullscreenElement) {
-        containerRef.current.requestFullscreen().then(() => {
-          setIsFullscreen(true);
-        }).catch(err => {
+  const handleFullscreen = () => {
+    const container = containerRef.current as any;
+    const video = videoRef.current as any;
+    const doc = document as any;
+
+    if (!doc.fullscreenElement && !doc.webkitFullscreenElement) {
+      if (container?.requestFullscreen) {
+        container.requestFullscreen().then(() => setIsFullscreen(true)).catch((err: any) => {
           addLog(`Erro ao ativar Tela Cheia: ${err.message}`);
+          if (video?.webkitEnterFullscreen) {
+            video.webkitEnterFullscreen();
+          }
         });
+      } else if (container?.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+        setIsFullscreen(true);
+      } else if (video?.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen();
+        setIsFullscreen(true);
       } else {
-        document.exitFullscreen().then(() => {
-          setIsFullscreen(false);
-        });
+        setIsFullscreen(prev => !prev);
+      }
+    } else {
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+        setIsFullscreen(false);
+      } else {
+        setIsFullscreen(false);
       }
     }
   };
 
+  const toggleFullscreen = handleFullscreen;
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-4 bg-slate-900/90 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/90 sm:backdrop-blur-md overflow-hidden">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.98, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-[1440px] my-auto overflow-hidden flex flex-col h-auto max-h-[98vh] sm:max-h-[96vh] border border-slate-100"
+            exit={{ opacity: 0, scale: 0.98, y: 15 }}
+            className="bg-white dark:bg-[#0B0F19] rounded-none sm:rounded-3xl shadow-2xl w-full max-w-[1440px] my-auto overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[96vh] border-0 sm:border border-slate-100 dark:border-slate-800"
           >
-            {/* Header Modal - Pro LMS Platform */}
-            <div className="p-3.5 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-stretch md:items-center bg-white dark:bg-[#0F172A]">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 shrink-0">
-                  <GraduationCap size={22} />
-                </div>
-                <div className="max-w-[220px] sm:max-w-[380px] lg:max-w-[520px] text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-widest bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 px-2 py-0.5 rounded-md">
-                      {course?.system}
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wider">
-                      {currentTab === 'pdf' ? 'Material de Apoio PDF' : 'Vídeo Aula'}
-                    </span>
+            {/* Header Modal - Pro LMS Platform Responsive */}
+            <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-2.5 bg-white dark:bg-[#0F172A] shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20 shrink-0">
+                    <GraduationCap size={18} className="sm:size-[22px]" />
                   </div>
-                  <h3 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white truncate leading-tight mt-0.5">
-                    {course?.title}
-                  </h3>
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] sm:text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-widest bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 px-1.5 sm:px-2 py-0.5 rounded-md">
+                        {course?.system}
+                      </span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wider">
+                        {currentTab === 'pdf' ? 'Passo a Passo (PDF)' : 'Vídeo Aula'}
+                      </span>
+                    </div>
+                    <h3 className="text-xs sm:text-base md:text-lg font-black text-slate-900 dark:text-white truncate leading-tight mt-0.5">
+                      {course?.title}
+                    </h3>
+                  </div>
+                </div>
+
+                {/* Right controls: Concluir + Search toggle + Close */}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  {courses && courses.length > 0 && (
+                    <button
+                      onClick={() => setShowMobileSearch(!showMobileSearch)}
+                      className={`p-2 rounded-xl border sm:hidden transition-colors ${
+                        showMobileSearch 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                      title="Pesquisar outra aula"
+                    >
+                      <Search size={16} />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => course && onToggleComplete?.(course.id)}
+                    className={`flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all border active:scale-95 shadow-sm ${
+                      isCompleted
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                    }`}
+                    title={isCompleted ? "Aula marcada como concluída! Clique para alterar" : "Clique para registrar conclusão desta aula"}
+                  >
+                    <CheckCircle2 size={16} className={isCompleted ? "text-emerald-500" : "text-white"} />
+                    <span className="hidden sm:inline">{isCompleted ? 'Concluída ✓' : 'Marcar Concluída'}</span>
+                  </button>
+
+                  <button 
+                    onClick={onClose} 
+                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 border border-slate-200/80 dark:border-slate-800"
+                    aria-label="Fechar"
+                  >
+                    <X size={18} className="sm:size-[20px]" />
+                  </button>
                 </div>
               </div>
 
-              {/* Dynamic search bar inside the MediaModal */}
+              {/* Dynamic search bar: Always available on desktop, collapsible on mobile */}
               {courses && courses.length > 0 && (
-                <div className="relative flex-1 max-w-md mx-0 md:mx-6" ref={searchRef}>
+                <div className={`relative w-full ${showMobileSearch ? 'block' : 'hidden sm:block sm:max-w-md sm:mx-auto'}`} ref={searchRef}>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                     <input
@@ -5526,6 +5721,7 @@ const MediaModal: React.FC<{
                                     onSelectCourse?.(c);
                                     setSearchQuery('');
                                     setIsSearchFocused(false);
+                                    setShowMobileSearch(false);
                                   }}
                                   className={`w-full flex items-center justify-between p-2 rounded-xl text-left select-none transition-colors ${
                                     c.id === course?.id 
@@ -5552,60 +5748,37 @@ const MediaModal: React.FC<{
                   </AnimatePresence>
                 </div>
               )}
-              
-              <div className="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
-                <button
-                  onClick={() => course && onToggleComplete?.(course.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border active:scale-95 shadow-sm ${
-                    isCompleted
-                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
-                  }`}
-                  title={isCompleted ? "Aula marcada como concluída! Clique para alterar" : "Clique para registrar conclusão desta aula"}
-                >
-                  <CheckCircle2 size={16} className={isCompleted ? "text-emerald-500" : "text-white"} />
-                  <span className="hidden sm:inline">{isCompleted ? 'Concluída ✓' : 'Marcar Concluída'}</span>
-                </button>
-
-                <button 
-                  onClick={onClose} 
-                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0 border border-slate-200/80 dark:border-slate-800"
-                  aria-label="Fechar"
-                >
-                  <X size={20} />
-                </button>
-              </div>
             </div>
 
             {/* Selector de Abas em Destaque (Pill Control LMS) */}
             {videoSrc && pdfSrc && (
-              <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900 p-1.5 sm:p-2 gap-2 shadow-inner">
+              <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900 p-1.5 sm:p-2 gap-2 shadow-inner shrink-0">
                 <button
                   onClick={() => setCurrentTab('video')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm font-black rounded-xl transition-all uppercase tracking-wide ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 min-h-[44px] text-xs sm:text-sm font-black rounded-xl transition-all uppercase tracking-wide active:scale-98 ${
                     currentTab === 'video'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25 ring-2 ring-blue-400/50'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
                   }`}
                 >
-                  <Play size={16} fill={currentTab === 'video' ? 'currentColor' : 'none'} />
+                  <Play size={15} fill={currentTab === 'video' ? 'currentColor' : 'none'} />
                   <span className="truncate">🎬 Vídeo Aula</span>
                 </button>
                 <button
                   onClick={() => setCurrentTab('pdf')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm font-black rounded-xl transition-all uppercase tracking-wide ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 min-h-[44px] text-xs sm:text-sm font-black rounded-xl transition-all uppercase tracking-wide active:scale-98 ${
                     currentTab === 'pdf'
                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-400/50'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
                   }`}
                 >
-                  <FileText size={16} />
+                  <FileText size={15} />
                   <span className="truncate">📄 Passo a Passo (PDF)</span>
                 </button>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto max-h-[82vh] bg-slate-50">
+            <div className="flex-1 overflow-y-auto pb-24 sm:pb-6 bg-slate-50 dark:bg-[#0B0F19]">
               {!videoSrc && !pdfSrc ? (
                 <div className="flex flex-col items-center justify-center p-6 sm:p-16 text-center max-w-xl mx-auto">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-3 sm:mb-4 border border-amber-200 shadow-sm">
@@ -5660,293 +5833,393 @@ const MediaModal: React.FC<{
                         </div>
                       )}
 
-                      {/* Video Container - Destacado e Proporcional 16:9 sem deslocamento */}
+                      {/* Video Container - Proporção adaptada para mobile e desktop sem cortar o player */}
                       <div 
                         ref={containerRef}
-                        className={`group relative flex items-center justify-center bg-black overflow-hidden mx-auto transition-all ${
+                        className={`group relative flex flex-col items-center justify-center bg-black overflow-hidden mx-auto transition-all ${
                           isFullscreen 
-                            ? 'w-screen h-screen' 
-                            : 'w-full max-w-5xl aspect-video rounded-xl shadow-2xl border border-slate-800 ring-1 ring-slate-800'
+                            ? 'fixed inset-0 z-50 w-screen h-screen bg-slate-950 flex flex-col justify-between p-2 sm:p-4 overflow-y-auto' 
+                            : 'w-full max-w-5xl mx-auto flex flex-col gap-2.5'
                         }`}
                       >
-                        {/* Loading Ring overlay */}
-                        {videoState === 'loading' && (
-                          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30 pointer-events-none">
-                            <Loader2 className="animate-spin text-blue-500" size={28} />
-                            <span className="text-[10px] sm:text-xs font-bold text-slate-300 tracking-wider uppercase">Carregando aula...</span>
-                          </div>
-                        )}
+                        {/* Viewport do Vídeo */}
+                        <div className={`relative w-full flex items-center justify-center bg-black overflow-hidden ${
+                          isFullscreen 
+                            ? 'flex-1 w-full min-h-0 rounded-2xl border border-slate-800/80' 
+                            : isDirectVideo(videoSrc)
+                              ? 'w-full aspect-video min-h-[220px] sm:min-h-[420px] rounded-xl shadow-2xl border border-slate-800 ring-1 ring-slate-800'
+                              : 'w-full min-h-[290px] xs:min-h-[320px] sm:min-h-[480px] aspect-[16/11] sm:aspect-video rounded-xl shadow-2xl border border-slate-800 ring-1 ring-slate-800'
+                        }`}>
+                          {/* Loading Ring overlay */}
+                          {videoState === 'loading' && (
+                            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30 pointer-events-none">
+                              <Loader2 className="animate-spin text-blue-500" size={28} />
+                              <span className="text-[10px] sm:text-xs font-bold text-slate-300 tracking-wider uppercase">Carregando aula...</span>
+                            </div>
+                          )}
 
-                        {/* Status Label on Screen */}
-                        <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 flex gap-1.5 pointer-events-none shadow-md">
-                          <span className={`px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold rounded-full text-white flex items-center gap-1.5 backdrop-blur-md ${
-                            videoState === 'loading' ? 'bg-amber-600/90' :
-                            videoState === 'playing' ? 'bg-emerald-600/90' :
-                            videoState === 'paused' ? 'bg-slate-600/90' :
-                            'bg-red-600/90'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full bg-white ${videoState === 'playing' || videoState === 'loading' ? 'animate-ping' : ''}`} />
-                            {videoState === 'loading' ? 'Carregando' :
-                             videoState === 'playing' ? 'Reproduzindo' :
-                             videoState === 'paused' ? 'Pausado' :
-                             'Visualização Externa'}
-                          </span>
+                          {/* Status Label on Screen - Exibido apenas em vídeo direto e em desktop para não cobrir botões nativos */}
+                          {isDirectVideo(videoSrc) && (
+                            <div className="hidden sm:flex absolute top-2 right-2 sm:top-3 sm:right-3 z-20 gap-1.5 pointer-events-none shadow-md">
+                              <span className={`px-2 py-0.5 text-[9px] sm:text-[10px] font-extrabold rounded-full text-white flex items-center gap-1.5 backdrop-blur-md ${
+                                videoState === 'loading' ? 'bg-amber-600/90' :
+                                videoState === 'playing' ? 'bg-emerald-600/90' :
+                                videoState === 'paused' ? 'bg-slate-600/90' :
+                                'bg-red-600/90'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full bg-white ${videoState === 'playing' || videoState === 'loading' ? 'animate-ping' : ''}`} />
+                                {videoState === 'loading' ? 'Carregando' :
+                                 videoState === 'playing' ? 'Reproduzindo' :
+                                 videoState === 'paused' ? 'Pausado' :
+                                 'Visualização Externa'}
+                              </span>
+                            </div>
+                          )}
+
+                          {isDirectVideo(videoSrc) ? (
+                            <>
+                              <video 
+                                key={videoSrc}
+                                ref={videoRef}
+                                src={videoSrc} 
+                                className="w-full h-full object-contain cursor-pointer" 
+                                controls={false}
+                                autoPlay 
+                                playsInline
+                                onTimeUpdate={handleTimeUpdate}
+                                onLoadedMetadata={handleLoadedMetadata}
+                                onPlay={() => { setIsPlaying(true); setVideoState('playing'); }}
+                                onPause={() => { setIsPlaying(false); setVideoState('paused'); }}
+                                onClick={handlePlayPause}
+                                onWaiting={() => setVideoState('loading')}
+                                onPlaying={() => setVideoState('playing')}
+                                onError={() => {
+                                  if (videoSrc?.includes('/api/stream-drive')) {
+                                    addLog("Falha no stream direto do Drive. Alternando para o player iframe oficial...");
+                                    setUseIframeFallback(true);
+                                  } else {
+                                    setVideoState('error');
+                                    addLog("Erro crítico de renderização de vídeo direto.");
+                                  }
+                                }}
+                              />
+                              
+                              {/* Central Pause Overlay Indicator */}
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <AnimatePresence>
+                                  {!isPlaying && (
+                                    <motion.div 
+                                      initial={{ scale: 0.8, opacity: 0 }}
+                                      animate={{ scale: 1, opacity: 1 }}
+                                      exit={{ scale: 1.2, opacity: 0 }}
+                                      className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-600/90 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm"
+                                    >
+                                      <Play size={22} fill="currentColor" className="ml-1" />
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="w-full h-full relative">
+                              {/* Iframe wrapper for general, YouTube, vimeo, Google Drive, sharepoint links */}
+                              <iframe 
+                                ref={iframeRef}
+                                src={videoSrc || undefined} 
+                                className="w-full h-full border-0 rounded-xl"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                                allowFullScreen
+                                title="Vídeo Aula"
+                                onLoad={() => {
+                                  setVideoState('playing');
+                                  addLog("Iframe carregado e pronto.");
+                                }}
+                                onError={() => {
+                                  setVideoState('error');
+                                  addLog("Falha ao embutir link no iframe.");
+                                }}
+                              ></iframe>
+                            </div>
+                          )}
                         </div>
-
-                        {isDirectVideo(videoSrc) ? (
-                          <>
-                            <video 
-                              key={videoSrc}
-                              ref={videoRef}
-                              src={videoSrc} 
-                              className="w-full h-full object-contain cursor-pointer" 
-                              controls={false}
-                              autoPlay 
-                              playsInline
-                              onTimeUpdate={handleTimeUpdate}
-                              onLoadedMetadata={handleLoadedMetadata}
-                              onPlay={() => { setIsPlaying(true); setVideoState('playing'); }}
-                              onPause={() => { setIsPlaying(false); setVideoState('paused'); }}
+                        
+                        {/* Integrated Action & Navigation Bar below player - Reorganizado em Grade 2x2 Responsiva no Celular */}
+                        <div className="max-w-5xl mx-auto w-full bg-slate-900/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3.5 flex flex-col gap-2.5 text-white border border-slate-800 shadow-xl">
+                          {/* Linha 1: Linha do Tempo interativa e Play/Pause */}
+                          <div className="flex items-center gap-2 px-2.5 py-2 bg-slate-950/80 rounded-xl border border-slate-800/90 shadow-inner">
+                            <button 
                               onClick={handlePlayPause}
-                              onWaiting={() => setVideoState('loading')}
-                              onPlaying={() => setVideoState('playing')}
-                              onError={() => { setVideoState('error'); addLog("Erro crítico de renderização de vídeo direto."); }}
-                            />
-                            
-                            {/* Central Pause Overlay Indicator */}
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <AnimatePresence>
-                                {!isPlaying && (
-                                  <motion.div 
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 1.2, opacity: 0 }}
-                                    className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-600/90 text-white rounded-full flex items-center justify-center shadow-2xl backdrop-blur-sm"
-                                  >
-                                    <Play size={22} fill="currentColor" className="ml-1" />
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
+                              className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-xl sm:rounded-lg text-white shrink-0 transition-all active:scale-95 shadow-md shadow-blue-600/30"
+                              title={isPlaying ? "Pausar" : "Reproduzir"}
+                            >
+                              {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                            </button>
+                            <span className="text-[11px] sm:text-xs font-mono font-bold text-slate-300 w-11 text-center shrink-0">
+                              {formatTime(currentTime)}
+                            </span>
+                            <div className="flex-1 relative h-3 bg-slate-800 rounded-full cursor-pointer flex items-center group/timeline">
+                              <input 
+                                type="range" 
+                                min="0" 
+                                max={duration || 100}
+                                step="0.1"
+                                value={currentTime}
+                                onChange={handleSeekChange}
+                                className="absolute inset-0 w-full opacity-0 cursor-pointer z-10 h-full"
+                                title="Clique ou arraste para ir a qualquer ponto do vídeo"
+                              />
+                              <div 
+                                className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full"
+                                style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                              />
+                              <div 
+                                className="absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white shadow-md shadow-blue-500/50 scale-100 transition-transform duration-100 pointer-events-none"
+                                style={{ left: `calc(${duration ? (currentTime / duration) * 100 : 0}% - 8px)` }}
+                              />
                             </div>
-
-                            {/* Custom Controls Overlay for direct video */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-2 sm:p-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 z-20 flex flex-col gap-1.5 text-left">
-                              {/* Progress bar timeline on hover */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold font-mono text-white tracking-wider">{formatTime(currentTime)}</span>
-                                <div className="flex-1 relative h-2 bg-white/20 rounded-full cursor-pointer group/bar flex items-center">
-                                  <input 
-                                    type="range"
-                                    min="0"
-                                    max={duration || 0}
-                                    step="0.1"
-                                    value={currentTime}
-                                    onChange={handleSeekChange}
-                                    className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
-                                  />
-                                  <div 
-                                    className="absolute top-0 left-0 h-full bg-blue-500 rounded-full"
-                                    style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
-                                  />
-                                  <div 
-                                    className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-white scale-100 transition-transform duration-100 shadow-md"
-                                    style={{ left: `calc(${(currentTime / (duration || 1)) * 100}% - 7px)` }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-bold font-mono text-white tracking-wider">{formatTime(duration)}</span>
-                              </div>
-
-                              {/* Controls row */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <button 
-                                    onClick={handlePlayPause}
-                                    className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-                                  >
-                                    {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" className="ml-0.5" />}
-                                  </button>
-
-                                  {/* Volume slider control */}
-                                  <div className="flex items-center gap-1 group/vol">
-                                    <button onClick={handleMuteToggle} className="text-white/80 hover:text-white p-1">
-                                      {isMuted ? <VolumeX size={14} /> : volume < 0.5 ? <Volume1 size={14} /> : <Volume2 size={14} />}
-                                    </button>
-                                    <input 
-                                      type="range"
-                                      min="0"
-                                      max="1"
-                                      step="0.1"
-                                      value={isMuted ? 0 : volume}
-                                      onChange={handleVolumeChange}
-                                      className="w-12 h-1 bg-white/20 rounded appearance-none cursor-pointer accent-blue-500"
-                                    />
-                                  </div>
-
-                                  {/* Speed setting */}
-                                  <div className="flex gap-1">
-                                    {[1, 1.5, 2].map(rate => (
-                                      <button 
-                                        key={rate} 
-                                        onClick={() => handleRateChange(rate)}
-                                        className={`px-1.5 py-0.5 rounded text-[10px] font-black tracking-wide ${playbackRate === rate ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
-                                      >
-                                        {rate}x
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1.5">
-                                  <button onClick={togglePictureInPicture} className="text-white/80 hover:text-white p-1" title="Picture-in-Picture">
-                                    <ExternalLink size={14} />
-                                  </button>
-                                  <button onClick={toggleFullscreen} className="text-white/80 hover:text-white p-1" title="Tela Cheia">
-                                    <Maximize size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="w-full h-full relative">
-                            {/* Iframe wrapper for general, YouTube, vimeo, sharepoint links */}
-                            <iframe 
-                              ref={iframeRef}
-                              src={videoSrc || undefined} 
-                              className="w-full h-full border-0 rounded-xl"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                              allowFullScreen
-                              title="Vídeo Aula"
-                              onLoad={() => {
-                                setVideoState('playing');
-                                addLog("Iframe carregado e pronto.");
-                              }}
-                              onError={() => {
-                                setVideoState('error');
-                                addLog("Falha ao embutir link no iframe.");
-                              }}
-                            ></iframe>
+                            <span className="text-[11px] sm:text-xs font-mono font-bold text-slate-400 w-11 text-center shrink-0">
+                              {formatTime(duration)}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                      
-                      {/* Integrated Action & Navigation Bar below player - Com Destaque aos Controles e Navegação do Vídeo */}
-                      <div className="max-w-5xl mx-auto w-full bg-slate-900 rounded-xl p-2.5 sm:p-3 flex flex-col gap-2 text-white border border-slate-800 shadow-md">
-                        {/* Interactive Timeline Bar for Seeking to Any Point in Video */}
-                        <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-950/80 rounded-lg border border-slate-800/80">
-                          <button 
-                            onClick={handlePlayPause}
-                            className="w-7 h-7 flex items-center justify-center bg-blue-600 hover:bg-blue-500 rounded-md text-white shrink-0 transition-all active:scale-95"
-                            title={isPlaying ? "Pausar" : "Reproduzir"}
-                          >
-                            {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="ml-0.5" />}
-                          </button>
-                          <span className="text-[10px] font-mono font-bold text-slate-300 w-9 text-right shrink-0">{formatTime(currentTime)}</span>
-                          <div className="flex-1 relative h-2 bg-slate-800 rounded-full cursor-pointer flex items-center group/timeline">
-                            <input 
-                              type="range"
-                              min="0"
-                              max={duration || 100}
-                              step="0.1"
-                              value={currentTime}
-                              onChange={handleSeekChange}
-                              className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
-                              title="Clique ou arraste para ir a qualquer ponto do vídeo"
-                            />
-                            <div 
-                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full"
-                              style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                            />
-                            <div 
-                              className="absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full bg-white shadow-md shadow-blue-500/50 scale-100 transition-transform duration-100"
-                              style={{ left: `calc(${duration ? (currentTime / duration) * 100 : 0}% - 7px)` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-mono font-bold text-slate-400 w-9 shrink-0">{formatTime(duration)}</span>
-                        </div>
 
-                        {/* Action Controls Row - Perfeitamente Adaptado para Mobile e Desktop */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs">
-                          {/* Destacados: Voltar 10s e Avançar 10s (SEMPRE ATIVOS) */}
-                          <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto">
+                          {/* Grade 2x2 para Celular / Barra Flexível para Computador */}
+                          {/* Celular: Grade 2x2 com botões grandes, fáceis de tocar (touch-friendly) */}
+                          <div className="grid grid-cols-2 gap-2.5 sm:hidden">
+                            {/* Célula 1: Voltar 10s */}
                             <button
                               onClick={() => handleSeek(-10)}
-                              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold bg-blue-600/25 hover:bg-blue-600/35 text-blue-200 border border-blue-500/50 active:scale-95 transition-all shadow-sm"
+                              className="w-full h-12 flex items-center justify-center gap-2 rounded-xl text-xs font-extrabold bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/40 active:scale-95 transition-all shadow-sm"
                               title="Voltar 10 segundos no vídeo"
                             >
-                              <RotateCcw size={14} />
-                              Voltar 10s
+                              <RotateCcw size={16} className="text-blue-400 shrink-0" />
+                              <span>Voltar 10s</span>
                             </button>
                             
+                            {/* Célula 2: Avançar 10s */}
                             <button
                               onClick={() => handleSeek(10)}
-                              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-extrabold bg-blue-600/25 hover:bg-blue-600/35 text-blue-200 border border-blue-500/50 active:scale-95 transition-all shadow-sm"
+                              className="w-full h-12 flex items-center justify-center gap-2 rounded-xl text-xs font-extrabold bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/40 active:scale-95 transition-all shadow-sm"
                               title="Avançar 10 segundos no vídeo"
                             >
-                              Avançar 10s
-                              <RotateCw size={14} />
+                              <span>Avançar 10s</span>
+                              <RotateCw size={16} className="text-blue-400 shrink-0" />
+                            </button>
+
+                            {/* Célula 3: Trocar Velocidade (Toque para alternar: 0.75x -> 1x -> 1.25x -> 1.5x -> 2x) */}
+                            <button
+                              onClick={() => {
+                                const speeds = [0.75, 1, 1.25, 1.5, 2];
+                                const currentIndex = speeds.indexOf(playbackRate);
+                                const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+                                handleRateChange(nextSpeed);
+                              }}
+                              className="w-full h-12 flex items-center justify-between px-3 bg-slate-950/80 hover:bg-slate-950 rounded-xl border border-slate-800 active:scale-95 transition-all shadow-inner"
+                              title="Toque para alternar a velocidade de reprodução"
+                            >
+                              <div className="flex items-center gap-1.5 text-slate-300 font-extrabold text-xs">
+                                <Settings size={14} className="text-blue-400 shrink-0" />
+                                <span>Velocidade</span>
+                              </div>
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-600 text-white font-black text-xs shadow-sm">
+                                {playbackRate === 1 ? '1x' : `${playbackRate}x`}
+                              </span>
+                            </button>
+
+                            {/* Célula 4: Tela Cheia */}
+                            <button
+                              onClick={handleFullscreen}
+                              className="w-full h-12 flex items-center justify-center gap-2 rounded-xl text-xs font-extrabold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 active:scale-95 transition-all shadow-sm"
+                              title={isFullscreen ? "Sair da tela cheia" : "Modo tela cheia"}
+                            >
+                              {isFullscreen ? <Minimize2 size={16} className="text-amber-400 shrink-0" /> : <Maximize size={16} className="text-blue-400 shrink-0 text-white" />}
+                              <span>{isFullscreen ? 'Sair Cheia' : 'Tela Cheia'}</span>
                             </button>
                           </div>
 
-                          {/* Navegação entre Aulas e Abrir em Nova Aba */}
-                          <div className="grid grid-cols-3 sm:flex items-center gap-1.5 w-full sm:w-auto">
-                            <button
-                              onClick={onPrev}
-                              disabled={!onPrev}
-                              className={`flex items-center justify-center gap-1 px-2.5 py-2 rounded-lg text-xs font-bold transition-all ${
-                                onPrev 
-                                  ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 active:scale-95' 
-                                  : 'text-slate-600 bg-slate-900 border border-slate-800/60 cursor-not-allowed opacity-50'
-                              }`}
-                            >
-                              <ChevronLeft size={14} />
-                              Anterior
-                            </button>
-
-                            <button
-                              onClick={onNext}
-                              disabled={!onNext}
-                              className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                                onNext 
-                                  ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/20 active:scale-95' 
-                                  : 'text-slate-600 bg-slate-900 border border-slate-800/60 cursor-not-allowed opacity-50'
-                              }`}
-                            >
-                              Próxima
-                              <ChevronRight size={14} />
-                            </button>
-
-                            {course.videoUrl && (
-                              <a 
-                                href={course.videoUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center justify-center gap-1 px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all border border-slate-700 active:scale-95 shrink-0"
-                                title="Abrir vídeo em nova aba do navegador"
+                          {/* Desktop: Barra Horizontal com todos os controles expandidos */}
+                          <div className="hidden sm:flex items-center justify-between gap-2 text-xs">
+                            {/* Botões Voltar 10s e Avançar 10s */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleSeek(-10)}
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/40 active:scale-95 transition-all shadow-sm"
+                                title="Voltar 10 segundos no vídeo"
                               >
-                                <ExternalLink size={13} />
-                                Nova Aba
-                              </a>
-                            )}
+                                <RotateCcw size={14} />
+                                <span>Voltar 10s</span>
+                              </button>
+                              
+                              <button
+                                onClick={() => handleSeek(10)}
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 border border-blue-500/40 active:scale-95 transition-all shadow-sm"
+                                title="Avançar 10 segundos no vídeo"
+                              >
+                                <span>Avançar 10s</span>
+                                <RotateCw size={14} />
+                              </button>
+                            </div>
+
+                            {/* Seletor Trocar Velocidade: 0.75x, 1x, 1.25x, 1.5x, 2x */}
+                            <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+                              <div className="flex items-center gap-1 px-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                                <Settings size={12} className="text-blue-400" />
+                                <span>Velocidade</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                                  <button
+                                    key={rate}
+                                    onClick={() => handleRateChange(rate)}
+                                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all active:scale-95 ${
+                                      playbackRate === rate
+                                        ? 'bg-blue-600 text-white shadow-sm font-black'
+                                        : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                                    }`}
+                                    title={`Definir velocidade para ${rate}x`}
+                                  >
+                                    {rate === 1 ? '1x' : `${rate}x`}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Botão Tela Cheia Desktop */}
+                            <button
+                              onClick={handleFullscreen}
+                              className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 active:scale-95 transition-all shadow-sm"
+                              title={isFullscreen ? "Sair da tela cheia" : "Modo tela cheia"}
+                            >
+                              {isFullscreen ? <Minimize2 size={14} /> : <Maximize size={14} />}
+                              <span>{isFullscreen ? 'Sair' : 'Tela Cheia'}</span>
+                            </button>
+                          </div>
+
+                          {/* Linha 3: Ajustes Complementares (Velocidade direta no celular, Volume, Nova Aba, Navegação) */}
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1.5 border-t border-slate-800/80 text-xs">
+                            {/* Atalhos Rápidos de Velocidade Direta no Celular */}
+                            <div className="sm:hidden flex items-center justify-between gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800/70">
+                              <span className="text-[10px] font-extrabold text-slate-400 px-1 uppercase tracking-wider">Velocidade Direta:</span>
+                              <div className="flex items-center gap-1">
+                                {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                                  <button
+                                    key={rate}
+                                    onClick={() => handleRateChange(rate)}
+                                    className={`px-2 py-1 rounded-lg text-[11px] font-extrabold transition-all active:scale-95 ${
+                                      playbackRate === rate
+                                        ? 'bg-blue-600 text-white shadow-sm font-black'
+                                        : 'text-slate-300 hover:bg-slate-800/80'
+                                    }`}
+                                  >
+                                    {rate === 1 ? '1x' : `${rate}x`}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Ajuste de Volume e Mudo */}
+                            <div className="flex items-center justify-between sm:justify-start gap-2">
+                              <div className="flex items-center gap-1.5 bg-slate-950/60 px-2 py-1.5 rounded-lg border border-slate-800/60 flex-1 sm:flex-initial">
+                                <button 
+                                  onClick={handleMuteToggle} 
+                                  className="text-slate-300 hover:text-white p-1 transition-colors"
+                                  title={isMuted ? "Ativar som" : "Silenciar"}
+                                >
+                                  {isMuted || volume === 0 ? <VolumeX size={15} className="text-red-400" /> : volume < 0.5 ? <Volume1 size={15} /> : <Volume2 size={15} />}
+                                </button>
+                                <input 
+                                  type="range" 
+                                  min="0" 
+                                  max="1" 
+                                  step="0.1" 
+                                  value={isMuted ? 0 : volume} 
+                                  onChange={handleVolumeChange} 
+                                  className="w-16 sm:w-20 h-1.5 bg-slate-700 rounded appearance-none cursor-pointer accent-blue-500" 
+                                  title="Ajustar volume" 
+                                />
+                              </div>
+
+                              {/* Botão Abrir no Drive / Nova Aba */}
+                              {course.videoUrl && (
+                                <a 
+                                  href={course.videoUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-200 rounded-xl text-xs font-bold border border-blue-500/40 active:scale-95 transition-all shadow-sm" 
+                                  title="Abrir vídeo em nova aba do navegador"
+                                >
+                                  <ExternalLink size={13} />
+                                  <span>{getUrlType(course.videoUrl).includes('Drive') ? 'Abrir no Drive' : 'Nova Aba'}</span>
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Navegação entre Aulas (Totalmente acessível no Celular e no Computador) */}
+                            <div className="flex items-center justify-end gap-1.5 sm:border-l sm:border-slate-800 sm:pl-2">
+                              <button
+                                onClick={onPrev}
+                                disabled={!onPrev}
+                                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                  onPrev 
+                                    ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 active:scale-95 shadow-sm' 
+                                    : 'text-slate-600 bg-slate-900 border border-slate-800/60 cursor-not-allowed opacity-50'
+                                }`}
+                              >
+                                <ChevronLeft size={14} />
+                                <span>Anterior</span>
+                              </button>
+
+                              <button
+                                onClick={onNext}
+                                disabled={!onNext}
+                                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                  onNext 
+                                    ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/20 active:scale-95' 
+                                    : 'text-slate-600 bg-slate-900 border border-slate-800/60 cursor-not-allowed opacity-50'
+                                }`}
+                              >
+                                <span>Próxima</span>
+                                <ChevronRight size={14} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
+
                     </div>
                   )}
 
                   {/* Material de Apoio (PDF) - Visível apenas quando tab === 'pdf' */}
                   {pdfSrc && currentTab === 'pdf' && (
-                    <div className="p-2 sm:p-8 bg-slate-100">
+                    <div className="p-2 sm:p-6 lg:p-8 bg-slate-100 dark:bg-slate-900/60">
                       <div className="max-w-6xl mx-auto space-y-3 sm:space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm text-left">
+                        {/* Mobile Helper Card */}
+                        <div className="sm:hidden bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 p-3 rounded-xl text-left">
+                          <p className="text-xs font-black text-blue-900 dark:text-blue-200 mb-1 flex items-center gap-1.5">
+                            <FileText size={15} className="text-blue-600 dark:text-blue-400" />
+                            Visualização no Celular
+                          </p>
+                          <p className="text-[11px] text-blue-700 dark:text-blue-300 mb-2.5">
+                            Para dar zoom e folhear confortavelmente o PDF Passo a Passo na tela do seu aparelho:
+                          </p>
+                          <a 
+                            href={pdfSrc} 
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-xs font-extrabold shadow-md active:scale-95"
+                          >
+                            <Download size={15} />
+                            Abrir PDF em Tela Cheia / Baixar
+                          </a>
+                        </div>
+
+                        <div className="hidden sm:flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-white dark:bg-[#131B2E] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-left">
                           <div className="flex items-center gap-3">
-                            <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-600 shadow-sm shrink-0">
-                              <FileText size={20} className="sm:hidden" />
-                              <FileText size={24} className="hidden sm:block" />
+                            <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0">
+                              <FileText size={24} />
                             </div>
                             <div>
-                              <h4 className="text-sm sm:text-xl font-black text-slate-900">Material de Apoio Oficial (PDF)</h4>
-                              <p className="text-[11px] sm:text-xs text-slate-500">Documentação e guias operacionais completos para estudo.</p>
+                              <h4 className="text-sm sm:text-xl font-black text-slate-900 dark:text-white">Material de Apoio Oficial (PDF)</h4>
+                              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">Documentação e guias operacionais completos para estudo.</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -5963,10 +6236,10 @@ const MediaModal: React.FC<{
                         </div>
 
                         {/* PDF Viewer - Proportional Viewport */}
-                        <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full">
+                        <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden w-full">
                           <iframe 
                             src={pdfEmbedSrc || undefined} 
-                            className="w-full min-h-[420px] sm:min-h-[750px] h-[60vh] sm:h-[78vh] border-0"
+                            className="w-full min-h-[380px] sm:min-h-[750px] h-[58vh] sm:h-[78vh] border-0"
                             title="Material PDF Passo a Passo"
                           ></iframe>
                         </div>
@@ -6134,6 +6407,50 @@ const MediaModal: React.FC<{
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Barra Fixa Inferior para Mobile - Acesso Imediato sem rolagem */}
+            <div className="sm:hidden shrink-0 bg-slate-950 border-t border-slate-800 px-3 py-2 flex items-center justify-between gap-2 shadow-2xl z-30">
+              <button
+                onClick={onPrev}
+                disabled={!onPrev}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
+                  onPrev 
+                    ? 'bg-slate-800 text-slate-200 active:scale-95 border border-slate-700' 
+                    : 'text-slate-600 bg-slate-900/60 border border-slate-800/40 cursor-not-allowed opacity-40'
+                }`}
+                title="Aula anterior"
+              >
+                <ChevronLeft size={16} />
+                <span>Anterior</span>
+              </button>
+
+              <button
+                onClick={() => course && onToggleComplete?.(course.id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-extrabold transition-all shadow-md active:scale-95 ${
+                  isCompleted
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : 'bg-emerald-600 text-white shadow-emerald-600/30'
+                }`}
+                title={isCompleted ? "Aula concluída! Toque para alterar" : "Marcar aula como concluída"}
+              >
+                <CheckCircle2 size={16} className={isCompleted ? "text-emerald-400" : "text-white"} />
+                <span>{isCompleted ? 'Concluída ✓' : 'Concluir'}</span>
+              </button>
+
+              <button
+                onClick={onNext}
+                disabled={!onNext}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
+                  onNext 
+                    ? 'bg-blue-600 text-white active:scale-95 shadow-md shadow-blue-600/20' 
+                    : 'text-slate-600 bg-slate-900/60 border border-slate-800/40 cursor-not-allowed opacity-40'
+                }`}
+                title="Próxima aula"
+              >
+                <span>Próxima</span>
+                <ChevronRight size={16} />
+              </button>
             </div>
           </motion.div>
         </div>

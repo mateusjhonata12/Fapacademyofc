@@ -118,6 +118,87 @@ app.post("/api/upload", async (req, res) => {
   }
 });
 
+// Stream Google Drive video directly for full HTML5 player controls (seek, pause, speed)
+app.get("/api/stream-drive", async (req, res) => {
+  try {
+    const fileId = (req.query.id as string || "").trim();
+    if (!fileId) {
+      return res.status(400).send("ID do arquivo Google Drive é obrigatório.");
+    }
+
+    const driveUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download`;
+    const clientHeaders: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    };
+    if (req.headers.range) {
+      clientHeaders["Range"] = req.headers.range as string;
+    }
+
+    let response = await fetch(driveUrl, {
+      headers: clientHeaders,
+      redirect: "follow",
+    });
+
+    // Fallback to uc?export=download if needed
+    if (!response.ok && response.status !== 206) {
+      const fallbackUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      response = await fetch(fallbackUrl, {
+        headers: clientHeaders,
+        redirect: "follow",
+      });
+    }
+
+    if (!response.ok && response.status !== 206) {
+      return res.status(response.status).send("Não foi possível carregar o vídeo do Google Drive.");
+    }
+
+    res.status(response.status);
+    
+    // Copy important video headers
+    const headersToForward = ["content-range", "content-length", "content-type", "accept-ranges"];
+    headersToForward.forEach((h) => {
+      const val = response.headers.get(h);
+      if (val) {
+        res.setHeader(h, val);
+      }
+    });
+
+    res.setHeader("Accept-Ranges", "bytes");
+    if (!res.getHeader("content-type") || res.getHeader("content-type") === "application/octet-stream") {
+      res.setHeader("Content-Type", "video/mp4");
+    }
+
+    if (!response.body) {
+      return res.end();
+    }
+
+    // Stream the video bytes
+    const reader = response.body.getReader();
+    const pump = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!res.write(value)) {
+          // Wait for drain if buffer is full
+          await new Promise((resolve) => res.once("drain", resolve));
+        }
+      }
+      res.end();
+    };
+
+    req.on("close", () => {
+      reader.cancel().catch(() => {});
+    });
+
+    await pump();
+  } catch (error: any) {
+    console.error("Erro no stream de vídeo do Google Drive:", error);
+    if (!res.headersSent) {
+      res.status(500).send("Erro interno ao transmitir vídeo.");
+    }
+  }
+});
+
 // Initialize Gemini
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,

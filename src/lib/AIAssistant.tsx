@@ -275,31 +275,32 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({ courses, onOpenCourse 
 
   return (
     <>
-      {/* Botão Flutuante */}
+      {/* Botão Flutuante Adaptado para Mobile */}
       <motion.button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 active:scale-95 transition-all outline-none border border-white/10"
+        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 h-13 w-13 sm:h-14 sm:w-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-indigo-500/40 hover:shadow-indigo-500/60 hover:scale-105 active:scale-95 transition-all outline-none border border-white/20"
         whileHover={{ rotate: [0, -5, 5, 0] }}
         transition={{ duration: 0.5 }}
         title="FapAcademy Assistente IA"
       >
-        <div className="relative">
-          <MessageSquare size={24} />
-          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+        <div className="relative flex items-center justify-center">
+          <MessageSquare size={22} className="sm:hidden" />
+          <MessageSquare size={24} className="hidden sm:block" />
+          <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
           </span>
         </div>
       </motion.button>
 
-      {/* Janela de Chat lateral */}
+      {/* Janela de Chat lateral Adaptada para Mobile */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 50 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 50 }}
-            className="fixed bottom-24 right-6 z-50 w-[92vw] sm:w-[420px] h-[520px] bg-slate-900 text-slate-100 rounded-3xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden"
+            className="fixed inset-x-3 bottom-18 sm:inset-x-auto sm:right-6 sm:bottom-24 z-50 sm:w-[420px] h-[78vh] sm:h-[520px] max-h-[620px] bg-slate-900 text-slate-100 rounded-3xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-800 flex items-center justify-between">
