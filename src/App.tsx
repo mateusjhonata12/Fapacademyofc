@@ -482,7 +482,8 @@ export default function App() {
   const [completedCourses, setCompletedCourses] = useState<string[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('fapacademy_theme');
-    return (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : 'light';
+    // Forçar tema claro como padrão conforme solicitado pelo usuário
+    return savedTheme === 'dark' ? 'light' : 'light';
   });
 
   const handleContentScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -847,6 +848,51 @@ export default function App() {
     } catch (err) {
       console.error("Erro ao resetar progresso e certificados:", err);
       alert("Progresso local redefinido com sucesso.");
+    } finally {
+      setIsAppLoading(false);
+    }
+  };
+
+  // Função administrativa para zerar todas as estatísticas de engajamento da plataforma
+  const handleResetAllEngagementStats = async () => {
+    const confirmReset = window.confirm(
+      "Deseja realmente zerar todas as estatísticas de engajamento da plataforma?\n\n" +
+      "Esta ação irá redefinir as conclusões de aulas para 0 para todos os colaboradores, " +
+      "permitindo iniciar a contagem oficial a partir de agora com os acessos reais."
+    );
+    if (!confirmReset) return;
+
+    setIsAppLoading(true);
+    try {
+      // 1. Limpar progresso local da sessão atual
+      setCompletedCourses([]);
+      localStorage.removeItem('fapacademy_progress');
+      localStorage.setItem('fapacademy_stats_reset_time', String(Date.now()));
+
+      // 2. Atualizar estado local de todos os usuários
+      const updatedUsers = users.map(u => ({
+        ...u,
+        completedCourses: []
+      }));
+      setUsers(updatedUsers);
+
+      // 3. Atualizar no Firestore cada usuário cadastrado
+      for (const u of users) {
+        try {
+          const userRef = doc(db, 'users', u.id);
+          await updateDoc(userRef, { completedCourses: [] });
+        } catch (e) {
+          console.warn(`Aviso ao zerar progresso do usuário ${u.id}:`, e);
+        }
+      }
+
+      // 4. Limpar certificados emitidos no estado
+      setCertificates([]);
+
+      alert("Estatísticas zeradas com sucesso! Todas as métricas de engajamento foram reiniciadas e começam a valer a partir do zero.");
+    } catch (err) {
+      console.error("Erro ao zerar estatísticas:", err);
+      alert("Estatísticas locais zeradas com sucesso.");
     } finally {
       setIsAppLoading(false);
     }
@@ -1300,44 +1346,55 @@ export default function App() {
 
           {/* --- Sidebar --- */}
       <aside 
-        className={`fixed inset-y-0 left-0 z-50 bg-[#0F172A] text-white transition-all duration-500 ease-in-out lg:static overflow-hidden ${
-          isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 w-0'
+        className={`fixed inset-y-0 left-0 z-50 lg:sticky lg:top-0 h-screen transition-all duration-300 ease-in-out overflow-hidden flex flex-col shrink-0 border-r border-[#16274A] bg-[#0B172E] text-white shadow-2xl lg:shadow-none ${
+          isSidebarOpen 
+            ? 'translate-x-0 w-64 min-w-[16rem]' 
+            : '-translate-x-full lg:translate-x-0 lg:w-0 lg:min-w-0 w-0 pointer-events-none'
         }`}
       >
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <button 
-            onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
-            className="flex items-center gap-3 px-6 py-8 hover:opacity-80 transition-opacity w-full text-left"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#3B82F6]">
-              <GraduationCap size={24} />
-            </div>
-            <span className="text-xl font-bold tracking-tight">FapAcademy</span>
-          </button>
+        <div className="flex h-full flex-col min-h-0 bg-[#0B172E]">
+          {/* Logo Header */}
+          <div className="p-4 border-b border-blue-900/40 shrink-0">
+            <button 
+              onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}
+              className="flex items-center gap-3 hover:opacity-85 transition-opacity w-full text-left"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 text-white shadow-md shadow-blue-500/20 shrink-0">
+                <GraduationCap size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-lg font-black tracking-tight block leading-tight text-white">
+                  FapAcademy
+                </span>
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
+                  Treinamento Integrado
+                </span>
+              </div>
+            </button>
+          </div>
 
-          {/* Navegação */}
-          <nav className="flex-1 space-y-1 px-4">
+          {/* Navegação - Rola internamente caso a tela seja pequena, sem criar espaço vazio */}
+          <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5 space-y-1 overscroll-contain">
             <SidebarItem 
-              icon={<HomeIcon size={20} />} 
+              icon={<HomeIcon size={18} />} 
               label="Início" 
               active={activeTab === 'Home'} 
               onClick={() => { setActiveTab('Home'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
-              icon={<LayoutDashboard size={20} />} 
+              icon={<LayoutDashboard size={18} />} 
               label="Todos os Cursos" 
               active={activeTab === 'Todos'} 
               onClick={() => { setActiveTab('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
-              icon={<BarChart2 size={20} className="text-emerald-400" />} 
+              icon={<BarChart2 size={18} className="text-emerald-400" />} 
               label="Meu Empenho" 
               active={activeTab === 'MeuEmpenho'} 
               onClick={() => { setActiveTab('MeuEmpenho'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
-              icon={<Award size={20} className={hasUnlockedCertificates ? "text-amber-400 animate-pulse" : "text-amber-400"} />} 
+              icon={<Award size={18} className={hasUnlockedCertificates ? "text-amber-400 animate-pulse" : "text-amber-400"} />} 
               label="Certificados" 
               active={activeTab === 'Certificados'} 
               hasNotification={hasUnlockedCertificates}
@@ -1351,17 +1408,17 @@ export default function App() {
               onClick={() => { setActiveTab('Certificados'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             
-            <div className="pt-4 pb-2">
-              <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Setores</p>
+            <div className="pt-2.5 pb-1">
+              <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">Setores</p>
             </div>
             {SECTORS.map((sector) => {
               const isAllowed = userAllowedSectors.includes(sector);
               const sectorCoursesCount = publishedCourses.filter(c => getCourseSectors(c).includes(sector)).length;
               
-              const icon = sector === 'Finanças' ? <DollarSign size={20} className={isAllowed ? "text-emerald-400" : "text-slate-500"} />
-                : sector === 'Contabilidade' ? <Calculator size={20} className={isAllowed ? "text-indigo-400" : "text-slate-500"} />
-                : sector === 'Secretaria' ? <FileSpreadsheet size={20} className={isAllowed ? "text-amber-400" : "text-slate-500"} />
-                : <Briefcase size={20} className={isAllowed ? "text-purple-400" : "text-slate-500"} />;
+              const icon = sector === 'Finanças' ? <DollarSign size={18} className={isAllowed ? "text-emerald-400" : "text-slate-500"} />
+                : sector === 'Contabilidade' ? <Calculator size={18} className={isAllowed ? "text-indigo-400" : "text-slate-500"} />
+                : sector === 'Secretaria' ? <FileSpreadsheet size={18} className={isAllowed ? "text-amber-400" : "text-slate-500"} />
+                : <Briefcase size={18} className={isAllowed ? "text-purple-400" : "text-slate-500"} />;
 
               return (
                 <SidebarItem 
@@ -1371,11 +1428,15 @@ export default function App() {
                   active={activeTab === sector} 
                   badge={
                     !isAllowed ? (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-red-950/60 text-red-300 border border-red-800/80 flex items-center gap-1 shadow-sm shrink-0">
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-red-950/70 text-red-300 border border-red-800/80 flex items-center gap-1 shadow-xs shrink-0">
                         <Lock size={10} /> Restrito
                       </span>
                     ) : (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-slate-800 text-slate-400 text-xs">
+                      <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full shrink-0 ${
+                        activeTab === sector 
+                          ? 'bg-blue-800 text-white' 
+                          : 'bg-blue-950/80 text-blue-200 border border-blue-800/50'
+                      }`}>
                         {sectorCoursesCount}
                       </span>
                     )
@@ -1393,17 +1454,17 @@ export default function App() {
               );
             })}
 
-            <div className="pt-4 pb-2">
-              <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Sistemas</p>
+            <div className="pt-2.5 pb-1">
+              <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">Sistemas</p>
             </div>
             <SidebarItem 
-              icon={<BookOpen size={20} />} 
+              icon={<BookOpen size={18} />} 
               label="7Edu" 
               active={activeTab === '7Edu'} 
               onClick={() => { setActiveTab('7Edu'); setSelectedSectorFilter('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
             />
             <SidebarItem 
-              icon={<Settings size={20} />} 
+              icon={<Settings size={18} />} 
               label="TOTVS" 
               active={activeTab === 'TOTVS'} 
               onClick={() => { setActiveTab('TOTVS'); setSelectedSectorFilter('Todos'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
@@ -1411,11 +1472,11 @@ export default function App() {
 
             {currentUser && (currentUser.role?.toLowerCase() === 'admin' || currentUser.email === 'mateusjhonata123@gmail.com') && (
                 <>
-                  <div className="pt-4 pb-2">
-                    <p className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Administração</p>
+                  <div className="pt-2.5 pb-1">
+                    <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">Administração</p>
                   </div>
                   <SidebarItem 
-                    icon={<Users size={20} />} 
+                    icon={<Users size={18} />} 
                     label="Controle Geral" 
                     active={activeTab === 'Admin'} 
                     onClick={() => { setActiveTab('Admin'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }} 
@@ -1424,68 +1485,76 @@ export default function App() {
               )}
           </nav>
 
-          {/* Botão de Alternância de Tema */}
-          <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Tema {theme === 'dark' ? 'Escuro' : 'Claro'}</span>
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                theme === 'dark' ? 'bg-[#3B82F6]' : 'bg-slate-700'
-              }`}
-              title="Alternar tema"
-            >
-              <div
-                className={`flex h-4 w-4 items-center justify-center rounded-full bg-white transition-transform ${
-                  theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
+          {/* Bloco Inferior Compacto: Tema + Progresso + Usuário / Login (Acompanha a barra perfeitamente sem vácuo) */}
+          <div className="shrink-0 border-t border-blue-900/40 bg-[#081226]">
+            {/* Alternador de Tema */}
+            <div className="px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {theme === 'dark' ? <Moon size={14} className="text-blue-400" /> : <Sun size={14} className="text-amber-400" />}
+                <span className="text-xs font-semibold text-slate-300">
+                  Tema {theme === 'dark' ? 'Escuro' : 'Claro'}
+                </span>
+              </div>
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${
+                  theme === 'dark' ? 'bg-[#3B82F6]' : 'bg-slate-700'
                 }`}
+                title={`Alternar para tema ${theme === 'dark' ? 'claro' : 'escuro'}`}
               >
-                {theme === 'dark' ? (
-                  <Moon size={10} className="text-indigo-600" />
-                ) : (
-                  <Sun size={10} className="text-amber-500" />
-                )}
-              </div>
-            </button>
-          </div>
-
-          {/* Progresso Geral na Sidebar */}
-          <div className="px-6 py-6 border-t border-slate-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-slate-400">Seu Progresso</span>
-              <span className="text-xs font-bold text-[#3B82F6]">{progressPercentage}%</span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercentage}%` }}
-                className="h-full bg-[#3B82F6]"
-              />
-            </div>
-            <p className="mt-2 text-[10px] text-slate-500">
-              {userCompletedCount} de {userAccessibleCourses.length} aulas concluídas
-            </p>
-          </div>
-
-          {/* User Profile (Footer Sidebar) */}
-          <div className="border-t border-slate-800 p-4">
-            <div className="flex items-center gap-3 rounded-lg p-2 bg-slate-800/50">
-              <div className="h-8 w-8 rounded-full bg-[#3B82F6] flex items-center justify-center text-xs font-bold">
-                {currentUser?.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <p className="truncate text-sm font-medium">{currentUser?.name}</p>
-                <p className="truncate text-xs text-slate-400">{currentUser?.email}</p>
-                <p className="truncate text-[10px] text-blue-400 font-semibold mt-0.5">
-                  {isAdmin ? 'Acesso Global' : userAllowedSectors.join(' • ')}
-                </p>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="p-1.5 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
-                title="Sair"
-              >
-                <LogOut size={16} />
+                <div
+                  className={`flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm transition-transform ${
+                    theme === 'dark' ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
               </button>
+            </div>
+
+            {/* Progresso Geral na Sidebar */}
+            <div className="px-4 py-2 border-t border-blue-900/40">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Seu Progresso
+                </span>
+                <span className="text-xs font-black text-blue-400">{progressPercentage}%</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full overflow-hidden bg-blue-950 border border-blue-900/40">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPercentage}%` }}
+                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-slate-400">
+                {userCompletedCount} de {userAccessibleCourses.length} aulas concluídas
+              </p>
+            </div>
+
+            {/* User Profile / Login (Final da Barra Lateral) */}
+            <div className="p-3 border-t border-blue-900/40 bg-[#070F20]">
+              <div className="flex items-center gap-2.5 rounded-xl p-2 border border-blue-900/50 bg-blue-950/40 hover:bg-blue-950/60 transition-colors shadow-sm">
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm">
+                  {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-xs font-bold leading-tight text-white">
+                    {currentUser?.name}
+                  </p>
+                  <p className="truncate text-[10px] leading-tight text-slate-400">
+                    {currentUser?.email}
+                  </p>
+                  <p className="truncate text-[9px] text-blue-400 font-bold mt-0.5">
+                    {isAdmin ? 'Acesso Global' : userAllowedSectors.join(' • ')}
+                  </p>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-1.5 rounded-lg transition-colors shrink-0 text-slate-400 hover:text-red-400 hover:bg-red-500/20"
+                  title="Sair / Desconectar"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1795,6 +1864,7 @@ export default function App() {
                   }
                 }}
                 onResetProgress={handleResetProgressAndCertificates}
+                onResetEngagementStats={handleResetAllEngagementStats}
                 theme={theme}
               />
             ) : (
@@ -2370,27 +2440,31 @@ const HomeView: React.FC<{
 
               const meta = sector === 'Finanças' 
                 ? {
-                    icon: <DollarSign size={24} className="text-emerald-400" />,
+                    icon: <DollarSign size={24} className={theme === 'dark' ? "text-emerald-400" : "text-emerald-600"} />,
+                    iconBg: theme === 'dark' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200 text-emerald-600',
                     gradient: 'from-emerald-900/40 via-slate-900 to-slate-950',
                     border: 'border-emerald-500/40',
                     desc: 'Boletos, descontos condicionais, devoluções, baixas bancárias e conciliação.'
                   }
                 : sector === 'Contabilidade'
                 ? {
-                    icon: <Calculator size={24} className="text-indigo-400" />,
+                    icon: <Calculator size={24} className={theme === 'dark' ? "text-indigo-400" : "text-indigo-600"} />,
+                    iconBg: theme === 'dark' ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200 text-indigo-600',
                     gradient: 'from-indigo-900/40 via-slate-900 to-slate-950',
                     border: 'border-indigo-500/40',
                     desc: 'Relatórios gerenciais contábeis, lançamentos e parametrizações operacionais.'
                   }
                 : sector === 'Secretaria'
                 ? {
-                    icon: <FileSpreadsheet size={24} className="text-amber-400" />,
+                    icon: <FileSpreadsheet size={24} className={theme === 'dark' ? "text-amber-400" : "text-amber-600"} />,
+                    iconBg: theme === 'dark' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200 text-amber-600',
                     gradient: 'from-amber-900/40 via-slate-900 to-slate-950',
                     border: 'border-amber-500/40',
                     desc: 'Contratos acadêmicos, matrículas, bolsas dissídio e registros de estudantes.'
                   }
                 : {
-                    icon: <Briefcase size={24} className="text-purple-400" />,
+                    icon: <Briefcase size={24} className={theme === 'dark' ? "text-purple-400" : "text-purple-600"} />,
+                    iconBg: theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200 text-purple-600',
                     gradient: 'from-purple-900/40 via-slate-900 to-slate-950',
                     border: 'border-purple-500/40',
                     desc: 'Captação, negociações comerciais, atendimento e propostas educacionais.'
@@ -2413,22 +2487,28 @@ const HomeView: React.FC<{
                   } ${
                     theme === 'dark' 
                       ? `bg-gradient-to-br ${meta.gradient} ${meta.border} text-white` 
-                      : `bg-white border-slate-200 text-slate-900 hover:border-blue-300 shadow-slate-100`
+                      : `bg-white border-slate-200/90 text-slate-900 hover:border-blue-300 shadow-slate-200/50`
                   }`}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <div className={`p-2.5 rounded-xl border ${
-                        theme === 'dark' ? 'bg-white/10 border-white/15' : 'bg-slate-100 border-slate-200 text-slate-800'
-                      }`}>
+                      <div className={`p-2.5 rounded-xl border ${meta.iconBg}`}>
                         {meta.icon}
                       </div>
                       {isAllowed ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                          theme === 'dark'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
                           {sectorCourses.length} {sectorCourses.length === 1 ? 'Aula' : 'Aulas'}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border flex items-center gap-1 ${
+                          theme === 'dark'
+                            ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                            : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
                           <Lock size={10} /> Restrito
                         </span>
                       )}
@@ -2594,24 +2674,24 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick,
   return (
     <button 
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all relative ${
+      className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium transition-all relative ${
         active 
-          ? 'bg-[#3B82F6] text-white shadow-lg shadow-[#3B82F6]/20' 
-          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 font-bold' 
+          : 'text-slate-300 hover:bg-white/10 hover:text-white'
       }`}
     >
       <div className="relative flex items-center justify-center shrink-0">
         {icon}
         {hasNotification && (
-          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+          <span className="absolute -top-1 -right-1 flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
           </span>
         )}
       </div>
       <span className="truncate text-left flex-1">{label}</span>
       {badge}
-      {active && <ChevronRight size={16} className="ml-1 shrink-0" />}
+      {active && <ChevronRight size={15} className="ml-1 shrink-0 text-white/80" />}
     </button>
   );
 }
@@ -2946,8 +3026,9 @@ const AdminView: React.FC<{
   onUpdateCourse: (course: Course) => void,
   onSyncData: () => void,
   onResetProgress?: () => void,
+  onResetEngagementStats?: () => void,
   theme?: 'light' | 'dark'
-}> = ({ users, onAddUser, onDeleteUser, onUpdateUser, courses, onAddCourse, onDeleteCourse, onUpdateCourse, onSyncData, onResetProgress, theme = 'light' }) => {
+}> = ({ users, onAddUser, onDeleteUser, onUpdateUser, courses, onAddCourse, onDeleteCourse, onUpdateCourse, onSyncData, onResetProgress, onResetEngagementStats, theme = 'light' }) => {
   const [adminTab, setAdminTab] = useState<'users' | 'courses' | 'engagement'>('users');
   const [isAdding, setIsAdding] = useState(false);
   const [isBulk, setIsBulk] = useState(false);
@@ -2983,28 +3064,45 @@ const AdminView: React.FC<{
   const [bulkCourseText, setBulkCourseText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
-  // Generate beautiful analytical data from courses and users
+  // Gera dados estatísticos e analíticos em tempo real com base no engajamento REAL dos usuários (começando do zero)
   const getEngagementData = () => {
     const progressDataStr = localStorage.getItem('fapacademy_progress');
-    const completedCourses: string[] = progressDataStr ? JSON.parse(progressDataStr) : [];
+    let localCompletedCourses: string[] = [];
+    if (progressDataStr) {
+      try {
+        localCompletedCourses = JSON.parse(progressDataStr);
+      } catch (_) {}
+    }
     
+    // Inicializa o mapa com 0 conclusões para cada aula
     const completionsMap: Record<string, number> = {};
-    
-    courses.forEach((c, idx) => {
-      // Deterministically seed base completions based on course index / system
-      const baseCount = (idx % 3 === 0 ? 12 : idx % 2 === 0 ? 8 : 4) + (c.system === '7Edu' ? 5 : 2);
-      completionsMap[c.id] = baseCount;
+    courses.forEach((c) => {
+      completionsMap[c.id] = 0;
     });
 
-    if (completedCourses && completedCourses.length > 0) {
-      completedCourses.forEach(cid => {
+    // 1. Contabiliza conclusões registradas de todos os usuários no banco de dados
+    let anyUserHasProgress = false;
+    users.forEach(u => {
+      if (Array.isArray(u.completedCourses) && u.completedCourses.length > 0) {
+        anyUserHasProgress = true;
+        u.completedCourses.forEach(cid => {
+          if (completionsMap[cid] !== undefined) {
+            completionsMap[cid] += 1;
+          }
+        });
+      }
+    });
+
+    // 2. Se os usuários do banco ainda não sincronizaram, computa o progresso local da sessão
+    if (!anyUserHasProgress && localCompletedCourses.length > 0) {
+      localCompletedCourses.forEach(cid => {
         if (completionsMap[cid] !== undefined) {
           completionsMap[cid] += 1;
         }
       });
     }
 
-    // Sort and get top 5 most viewed lessons
+    // Ordena as aulas mais assistidas (Top 5)
     const popularLessonsData = courses
       .map(c => ({
         name: c.title.length > 25 ? c.title.substring(0, 25) + '...' : c.title,
@@ -3014,17 +3112,17 @@ const AdminView: React.FC<{
       .sort((a, b) => b.Conclusões - a.Conclusões)
       .slice(0, 5);
 
-    // Calculations for "Porcentagem de conclusão média" (Average completion rate)
+    // Porcentagem de conclusão média dos alunos cadastrados
     const userCompletions = users.map((u) => {
       const arr = Array.isArray(u.completedCourses) ? u.completedCourses : [];
       return Math.round((arr.length / Math.max(courses.length, 1)) * 100);
     });
 
-    const averageCompletion = Math.round(
-      userCompletions.reduce((sum, val) => sum + val, 0) / Math.max(users.length, 1)
-    );
+    const averageCompletion = users.length > 0
+      ? Math.round(userCompletions.reduce((sum, val) => sum + val, 0) / users.length)
+      : 0;
 
-    // Completion distribution by ranges (0-20%, 21-50%, 51-80%, 81-100%)
+    // Distribuição de conclusão em faixas percentuais
     const distribution = [
       { name: '0-20%', value: userCompletions.filter(v => v <= 20).length },
       { name: '21-50%', value: userCompletions.filter(v => v > 20 && v <= 50).length },
@@ -3040,6 +3138,8 @@ const AdminView: React.FC<{
       else totvsViews += views;
     });
 
+    const totalCompletions = eduViews + totvsViews;
+
     const systemViewsData = [
       { name: '7Edu', value: eduViews, color: '#6366F1' },
       { name: 'TOTVS', value: totvsViews, color: '#10B981' }
@@ -3049,7 +3149,8 @@ const AdminView: React.FC<{
       popularLessonsData,
       averageCompletion,
       distribution,
-      systemViewsData
+      systemViewsData,
+      totalCompletions
     };
   };
 
@@ -3528,59 +3629,99 @@ const AdminView: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       className="p-4 lg:p-8 max-w-6xl mx-auto"
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8 pb-6 border-b border-slate-200/80 dark:border-slate-800">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Painel Administrativo</h1>
-          <p className="mt-2 text-slate-600">Gerencie usuários, treinamentos e acompanhe o engajamento.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            Painel Administrativo
+          </h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            Gerencie usuários, treinamentos e acompanhe o engajamento em tempo real.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={onSyncData}
-            className="flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-5 py-3 rounded-xl font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors border border-emerald-200 dark:border-emerald-800/60 shadow-sm"
-          >
-            <ShieldCheck size={18} /> Sincronizar Tudo
-          </button>
-          {onResetProgress && (
+
+        {/* Barra Organizada de Botões e Ferramentas */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* Grupo de Ferramentas de Manutenção e Sistema */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button 
-              onClick={onResetProgress}
-              className="flex items-center justify-center gap-2 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 px-5 py-3 rounded-xl font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors border border-rose-200 dark:border-rose-800/60 shadow-sm"
-              title="Redefinir permanentemente o progresso de aulas e certificados do usuário atual"
+              onClick={onSyncData}
+              className="flex items-center justify-center gap-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 px-3.5 py-2.5 rounded-xl font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors border border-emerald-200 dark:border-emerald-800/60 shadow-sm text-xs"
+              title="Sincronizar base de aulas padrão"
             >
-              <RotateCcw size={18} /> Resetar Empenho & Certificados
+              <ShieldCheck size={16} />
+              <span>Sincronizar</span>
             </button>
-          )}
-          {adminTab === 'users' ? (
-            <>
+
+            {onResetEngagementStats && (
               <button 
-                onClick={() => { setIsAdding(true); setIsBulk(true); }}
-                className="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors border border-slate-200"
+                onClick={onResetEngagementStats}
+                className="flex items-center justify-center gap-1.5 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200 px-3.5 py-2.5 rounded-xl font-bold hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors border border-amber-300 dark:border-amber-700/60 shadow-sm text-xs"
+                title="Zerar todas as estatísticas para iniciar a contagem a partir de agora"
               >
-                <Plus size={20} /> Importar Vários
+                <BarChart2 size={16} />
+                <span>Zerar Estatísticas</span>
               </button>
+            )}
+
+            {onResetProgress && (
               <button 
-                onClick={() => { setIsAdding(true); setIsBulk(false); setEditingUser(null); }}
-                className="flex items-center justify-center gap-2 bg-[#3B82F6] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#2563EB] transition-colors shadow-lg shadow-blue-200"
+                onClick={onResetProgress}
+                className="flex items-center justify-center gap-1.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 px-3.5 py-2.5 rounded-xl font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors border border-rose-200 dark:border-rose-800/60 shadow-sm text-xs"
+                title="Redefinir permanentemente o progresso de aulas e certificados do seu usuário"
               >
-                <Plus size={20} /> Novo Usuário
+                <RotateCcw size={16} />
+                <span>Resetar Empenho</span>
               </button>
-            </>
-          ) : adminTab === 'courses' ? (
-            <>
-              <button 
-                onClick={() => { setIsAdding(true); setIsCourseBulk(true); setEditingCourse(null); }}
-                className="flex items-center justify-center gap-2 bg-slate-100 text-slate-700 px-5 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm text-sm"
-                title="Importar lista de aulas via texto ou arquivo CSV/TXT"
-              >
-                <FileUp size={18} /> Importar em Lote
-              </button>
-              <button 
-                onClick={() => { setIsAdding(true); setIsCourseBulk(false); setEditingCourse(null); setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '' }); }}
-                className="flex items-center justify-center gap-2 bg-[#3B82F6] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#2563EB] transition-colors shadow-lg shadow-blue-200 text-sm"
-              >
-                <Plus size={20} /> Nova Aula
-              </button>
-            </>
-          ) : null}
+            )}
+          </div>
+
+          <div className="hidden sm:block w-px h-8 bg-slate-200 dark:bg-slate-800 my-auto" />
+
+          {/* Grupo de Ações Primárias do Contexto */}
+          <div className="flex items-center gap-2">
+            {adminTab === 'users' ? (
+              <>
+                <button 
+                  onClick={() => { setIsAdding(true); setIsBulk(true); }}
+                  className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 text-xs sm:text-sm shadow-sm"
+                >
+                  <Plus size={18} /> Importar Vários
+                </button>
+                <button 
+                  onClick={() => { setIsAdding(true); setIsBulk(false); setEditingUser(null); }}
+                  className="flex items-center justify-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md shadow-blue-500/20 text-xs sm:text-sm"
+                >
+                  <Plus size={18} /> Novo Usuário
+                </button>
+              </>
+            ) : adminTab === 'courses' ? (
+              <>
+                <button 
+                  onClick={() => { setIsAdding(true); setIsCourseBulk(true); setEditingCourse(null); }}
+                  className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700 text-xs sm:text-sm shadow-sm"
+                  title="Importar lista de aulas via texto ou arquivo CSV/TXT"
+                >
+                  <FileUp size={18} /> Importar em Lote
+                </button>
+                <button 
+                  onClick={() => { setIsAdding(true); setIsCourseBulk(false); setEditingCourse(null); setNewCourse({ title: '', system: '7Edu', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '' }); }}
+                  className="flex items-center justify-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md shadow-blue-500/20 text-xs sm:text-sm"
+                >
+                  <Plus size={18} /> Nova Aula
+                </button>
+              </>
+            ) : (
+              onResetEngagementStats && (
+                <button 
+                  onClick={onResetEngagementStats}
+                  className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md shadow-amber-600/20 text-xs sm:text-sm"
+                  title="Zerar todas as estatísticas para iniciar a contagem a partir de agora"
+                >
+                  <RotateCcw size={17} /> Zerar Estatísticas
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
 
@@ -3593,7 +3734,7 @@ const AdminView: React.FC<{
           className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
             adminTab === 'users' 
               ? (theme === 'dark' ? 'bg-slate-800 text-[#3B82F6] shadow-sm' : 'bg-white text-[#3B82F6] shadow-sm') 
-              : 'text-slate-500 hover:text-slate-700'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           Usuários
@@ -3603,7 +3744,7 @@ const AdminView: React.FC<{
           className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
             adminTab === 'courses' 
               ? (theme === 'dark' ? 'bg-slate-800 text-[#3B82F6] shadow-sm' : 'bg-white text-[#3B82F6] shadow-sm') 
-              : 'text-slate-500 hover:text-slate-700'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           Aulas e Conteúdo
@@ -3613,7 +3754,7 @@ const AdminView: React.FC<{
           className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
             adminTab === 'engagement' 
               ? (theme === 'dark' ? 'bg-slate-800 text-[#3B82F6] shadow-sm' : 'bg-white text-[#3B82F6] shadow-sm') 
-              : 'text-slate-500 hover:text-slate-700'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           Engajamento dos Usuários
@@ -3623,28 +3764,30 @@ const AdminView: React.FC<{
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[
-          { label: 'Total de Usuários', value: users.length, icon: <Users className="text-blue-600" />, bg: 'bg-blue-50' },
-          { label: 'Aulas Ativas', value: courses.length, icon: <GraduationCap className="text-indigo-600" />, bg: 'bg-indigo-50' },
-          { label: 'Sistemas', value: '2', icon: <LayoutDashboard className="text-emerald-600" />, bg: 'bg-emerald-50' },
+          { label: 'Total de Usuários', value: users.length, icon: <Users className="text-blue-600 dark:text-blue-400" size={22} />, bg: 'bg-blue-50 dark:bg-blue-950/40' },
+          { label: 'Aulas Ativas', value: courses.length, icon: <GraduationCap className="text-indigo-600 dark:text-indigo-400" size={22} />, bg: 'bg-indigo-50 dark:bg-indigo-950/40' },
+          { label: 'Sistemas', value: '2', icon: <LayoutDashboard className="text-emerald-600 dark:text-emerald-400" size={22} />, bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+          <div key={i} className={`p-6 rounded-2xl border transition-colors flex items-center gap-4 ${
+            theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'
+          }`}>
             <div className={`p-3 rounded-xl ${stat.bg}`}>{stat.icon}</div>
             <div>
-              <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
-              <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{stat.label}</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
             </div>
           </div>
         ))}
       </div>
 
       {adminTab === 'users' && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h2 className="text-lg font-bold text-slate-900">Usuários Cadastrados</h2>
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Usuários Cadastrados</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-bold">
+              <thead className="bg-slate-50 dark:bg-slate-900/80 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-bold border-b border-slate-100 dark:border-slate-800">
                 <tr>
                   <th className="px-6 py-4 min-w-[200px]">Nome</th>
                   <th className="px-6 py-4 min-w-[200px]">E-mail</th>
@@ -3653,7 +3796,7 @@ const AdminView: React.FC<{
                   <th className="px-6 py-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                 {[...users].sort((a, b) => {
                   const isMainAdminA = a.email === 'mateusjhonata123@gmail.com';
                   const isMainAdminB = b.email === 'mateusjhonata123@gmail.com';
@@ -3661,33 +3804,33 @@ const AdminView: React.FC<{
                   if (isMainAdminB) return 1;
                   return a.name.localeCompare(b.name);
                 }).map((user) => (
-                  <tr key={user.id} className={`hover:bg-slate-50/50 transition-colors ${user.email === 'mateusjhonata123@gmail.com' ? 'bg-blue-50/30' : ''}`}>
+                  <tr key={user.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors ${user.email === 'mateusjhonata123@gmail.com' ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${user.role?.toLowerCase() === 'admin' ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'bg-slate-200 text-slate-600'}`}>
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${user.role?.toLowerCase() === 'admin' ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60' : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                           {user.name.charAt(0)}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-medium text-slate-900">{user.name}</span>
+                          <span className="font-medium text-slate-900 dark:text-white">{user.name}</span>
                           {user.email === 'mateusjhonata123@gmail.com' && (
-                            <span className="text-[10px] font-extrabold text-[#3B82F6] uppercase tracking-wider flex items-center gap-1">
+                            <span className="text-[10px] font-extrabold text-[#3B82F6] dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
                               <ShieldCheck size={10} /> Diretor do Sistema
                             </span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">{user.email}</td>
+                    <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{user.email}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        user.role?.toLowerCase() === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'
+                        user.role?.toLowerCase() === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                       }`}>
                         {user.role?.toLowerCase() === 'admin' ? 'Administrador' : 'Usuário'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       {user.role?.toLowerCase() === 'admin' || user.email === 'mateusjhonata123@gmail.com' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
                           <ShieldCheck size={13} /> Acesso Total (Todos os Setores)
                         </span>
                       ) : (
@@ -3697,10 +3840,10 @@ const AdminView: React.FC<{
                               <span 
                                 key={sector} 
                                 className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                                  sector === 'Finanças' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                  sector === 'Contabilidade' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                                  sector === 'Secretaria' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                  'bg-purple-50 text-purple-700 border border-purple-200'
+                                  sector === 'Finanças' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60' :
+                                  sector === 'Contabilidade' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60' :
+                                  sector === 'Secretaria' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60' :
+                                  'bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60'
                                 }`}
                               >
                                 {sector}
@@ -3716,7 +3859,8 @@ const AdminView: React.FC<{
                       <div className="flex justify-end gap-2">
                         <button 
                           onClick={() => handleEditUser(user)}
-                          className="text-slate-400 hover:text-[#3B82F6] transition-colors p-1"
+                          className="text-slate-400 hover:text-[#3B82F6] dark:hover:text-blue-400 transition-colors p-1"
+                          title="Editar usuário"
                         >
                           <Settings size={18} />
                         </button>
@@ -3724,6 +3868,7 @@ const AdminView: React.FC<{
                           <button 
                             onClick={() => onDeleteUser(user.id)}
                             className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                            title="Remover usuário"
                           >
                             <X size={18} />
                           </button>
@@ -3965,6 +4110,30 @@ const AdminView: React.FC<{
 
       {adminTab === 'engagement' && (
         <div className="space-y-8">
+          {/* Banner de Ação e Status do Engajamento */}
+          <div className={`p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${
+            theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-gradient-to-r from-blue-50 to-indigo-50/50 border-blue-100 shadow-sm'
+          }`}>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <BarChart2 className="text-blue-500" size={20} />
+                Métricas de Engajamento em Tempo Real
+              </h2>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                Estatísticas calculadas diretamente do progresso dos colaboradores. Você pode zerar tudo para iniciar uma nova rodada.
+              </p>
+            </div>
+            {onResetEngagementStats && (
+              <button
+                onClick={onResetEngagementStats}
+                className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold transition-all shadow-md shadow-amber-600/20 text-xs sm:text-sm shrink-0"
+                title="Zerar todas as conclusões para iniciar uma contagem oficial a partir de agora"
+              >
+                <RotateCcw size={16} /> Zerar Estatísticas (Iniciar Valendo)
+              </button>
+            )}
+          </div>
+
           {/* Analytics Overview Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
@@ -3972,7 +4141,7 @@ const AdminView: React.FC<{
               <h2 className={`text-4xl font-extrabold mt-2 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
                 {getEngagementData().systemViewsData.reduce((acc, curr) => acc + curr.value, 0)}
               </h2>
-              <p className="text-xs text-slate-500 mt-2">Acumulado em todas as vídeo-aulas</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Acumulado em todas as vídeo-aulas</p>
             </div>
 
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
@@ -3980,7 +4149,7 @@ const AdminView: React.FC<{
               <h2 className={`text-4xl font-extrabold mt-2 ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-500'}`}>
                 {getEngagementData().averageCompletion}%
               </h2>
-              <p className="text-xs text-slate-500 mt-2">Porcentagem de conclusão média dos alunos</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Porcentagem de conclusão média dos alunos</p>
             </div>
 
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
@@ -3988,7 +4157,7 @@ const AdminView: React.FC<{
               <h2 className={`text-4xl font-extrabold mt-2 ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-500'}`}>
                 {getEngagementData().systemViewsData.find(d => d.name === '7Edu')?.value || 0}
               </h2>
-              <p className="text-xs text-slate-500 mt-2">Aulas concluídas no sistema 7Edu</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Aulas concluídas no sistema 7Edu</p>
             </div>
 
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
@@ -3996,7 +4165,7 @@ const AdminView: React.FC<{
               <h2 className={`text-4xl font-extrabold mt-2 ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-500'}`}>
                 {getEngagementData().systemViewsData.find(d => d.name === 'TOTVS')?.value || 0}
               </h2>
-              <p className="text-xs text-slate-500 mt-2">Aulas concluídas no sistema TOTVS</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Aulas concluídas no sistema TOTVS</p>
             </div>
           </div>
 
@@ -4006,7 +4175,7 @@ const AdminView: React.FC<{
             <div className={`lg:col-span-2 p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800 pt-8' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Aulas Mais Assistidas (Top 5)</h3>
-                <p className="text-xs text-slate-500">Ranking das vídeo-aulas com o maior número de conclusões</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Ranking das vídeo-aulas com o maior número de conclusões</p>
               </div>
               <div className="h-80 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -4036,7 +4205,7 @@ const AdminView: React.FC<{
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Estudo por Área</h3>
-                <p className="text-xs text-slate-500">Divisão de aulas assistidas entre 7Edu e TOTVS</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Divisão de aulas assistidas entre 7Edu e TOTVS</p>
               </div>
               <div className="h-64 flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
@@ -4061,7 +4230,7 @@ const AdminView: React.FC<{
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="text-center text-xs text-slate-500 mt-2">
+              <div className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2">
                 Aulas do sistema <span className="text-[#6366F1] font-bold">7Edu</span> representam a maior taxa de visualizações.
               </div>
             </div>
@@ -4073,7 +4242,7 @@ const AdminView: React.FC<{
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Distribuição de Conclusão</h3>
-                <p className="text-xs text-slate-500">Quantidade de alunos por faixa de conclusão (%)</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Quantidade de alunos por faixa de conclusão (%)</p>
               </div>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -4103,7 +4272,7 @@ const AdminView: React.FC<{
             <div className={`p-6 rounded-2xl border transition-colors ${theme === 'dark' ? 'bg-[#131B2E] border-slate-800' : 'bg-white border-slate-100 shadow-sm'}`}>
               <div className="mb-4">
                 <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Performance de Alunos</h3>
-                <p className="text-xs text-slate-500">Métricas individuais de aproveitamento por colaborador</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Métricas individuais de aproveitamento por colaborador</p>
               </div>
               <div className="overflow-y-auto max-h-64 pr-2">
                 <div className="space-y-4">
@@ -4111,14 +4280,14 @@ const AdminView: React.FC<{
                     const arr = Array.isArray(u.completedCourses) ? u.completedCourses : [];
                     const pct = Math.round((arr.length / Math.max(courses.length, 1)) * 100);
                     return (
-                      <div key={u.id} className="flex items-center justify-between border-b pb-3 border-dashed border-slate-200">
+                      <div key={u.id} className="flex items-center justify-between border-b pb-3 border-dashed border-slate-200 dark:border-slate-800">
                         <div>
                           <p className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{u.name}</p>
-                          <p className="text-xs text-slate-500">{u.email}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{u.email}</p>
                         </div>
                         <div className="text-right">
                           <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                            pct >= 75 ? 'bg-emerald-100 text-emerald-800' : pct >= 40 ? 'bg-indigo-100 text-indigo-800' : 'bg-amber-100 text-amber-800'
+                            pct >= 75 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : pct >= 40 ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                           }`}>
                             {pct}% Concluído
                           </span>
@@ -4134,20 +4303,20 @@ const AdminView: React.FC<{
       )}
       <AnimatePresence>
         {isAdding && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden"
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-[#131B2E] border border-transparent dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden transition-colors"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-xl font-bold text-slate-900">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                   {adminTab === 'users' 
                     ? (isBulk ? 'Importar Vários Usuários' : editingUser ? 'Editar Usuário' : 'Novo Usuário')
                     : (isCourseBulk ? 'Importar Aulas em Lote (Links / Arquivo)' : editingCourse ? 'Editar Aula' : 'Nova Aula')}
                 </h3>
-                <button onClick={() => { setIsAdding(false); setEditingUser(null); setEditingCourse(null); setIsCourseBulk(false); }} className="text-slate-400 hover:text-slate-600">
+                <button onClick={() => { setIsAdding(false); setEditingUser(null); setEditingCourse(null); setIsCourseBulk(false); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                   <X size={24} />
                 </button>
               </div>
@@ -4157,13 +4326,13 @@ const AdminView: React.FC<{
                   isBulk ? (
                     <form onSubmit={handleBulkSubmit} className="p-6 space-y-4">
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Lista de Usuários</label>
-                        <p className="text-xs text-slate-500 mb-2">Cole um por linha no formato: Nome, Email, Senha (opcional)</p>
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Lista de Usuários</label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Cole um por linha no formato: Nome, Email, Senha (opcional)</p>
                         <textarea 
                           required
                           value={bulkText}
                           onChange={(e) => setBulkText(e.target.value)}
-                          className="w-full h-48 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all resize-none font-mono text-sm"
+                          className="w-full h-48 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all resize-none font-mono text-sm"
                           placeholder="Ex:&#10;João Silva, joao@fap.com.br, senha123&#10;Maria Santos, maria@fap.com.br"
                         />
                       </div>
@@ -4172,29 +4341,29 @@ const AdminView: React.FC<{
                   ) : (
                     <form onSubmit={handleSubmitUser} className="p-6 space-y-4">
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Nome Completo</label>
-                        <input type="text" required value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Nome Completo</label>
+                        <input type="text" required value={newUser.name} onChange={(e) => setNewUser({...newUser, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">E-mail Corporativo</label>
-                        <input type="email" required value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">E-mail Corporativo</label>
+                        <input type="email" required value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Senha de Acesso</label>
-                        <input type="text" required value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Senha de Acesso</label>
+                        <input type="text" required value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all" />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Cargo / Permissão</label>
-                        <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value as any})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all appearance-none bg-white">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Cargo / Permissão</label>
+                        <select value={newUser.role} onChange={(e) => setNewUser({...newUser, role: e.target.value as any})} className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all appearance-none">
                           <option value="user">Usuário Padrão</option>
                           <option value="admin">Administrador (Acesso Total)</option>
                         </select>
                       </div>
 
                       {/* Setores Liberados para Acesso */}
-                      <div className="pt-3 border-t border-slate-100">
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                         <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-sm font-bold text-slate-700">Setores Liberados para Acesso *</label>
+                          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Setores Liberados para Acesso *</label>
                           <button 
                             type="button" 
                             onClick={() => {
@@ -4205,12 +4374,12 @@ const AdminView: React.FC<{
                                 allowedSectors: hasAll ? [] : all
                               });
                             }}
-                            className="text-xs font-bold text-[#3B82F6] hover:underline"
+                            className="text-xs font-bold text-[#3B82F6] dark:text-blue-400 hover:underline"
                           >
                             {(newUser.allowedSectors || []).length === 4 ? 'Desmarcar Todos' : 'Liberar Todos os 4 Setores'}
                           </button>
                         </div>
-                        <p className="text-xs text-slate-500 mb-2.5">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2.5">
                           O usuário terá acesso apenas aos vídeos e aulas cadastrados nos setores selecionados abaixo:
                         </p>
                         <div className="grid grid-cols-2 gap-2.5">
@@ -4221,8 +4390,8 @@ const AdminView: React.FC<{
                                 key={sector} 
                                 className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
                                   isSelected 
-                                    ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-sm' 
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-200 shadow-sm' 
+                                    : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                 }`}
                               >
                                 <input 
@@ -4239,10 +4408,10 @@ const AdminView: React.FC<{
                                   className="w-4 h-4 rounded text-[#3B82F6] focus:ring-[#3B82F6]"
                                 />
                                 <div className="flex items-center gap-1.5 text-xs font-bold">
-                                  {sector === 'Finanças' && <DollarSign size={14} className="text-emerald-600" />}
-                                  {sector === 'Contabilidade' && <Calculator size={14} className="text-indigo-600" />}
-                                  {sector === 'Secretaria' && <FileSpreadsheet size={14} className="text-amber-600" />}
-                                  {sector === 'Comercial' && <Briefcase size={14} className="text-purple-600" />}
+                                  {sector === 'Finanças' && <DollarSign size={14} className="text-emerald-600 dark:text-emerald-400" />}
+                                  {sector === 'Contabilidade' && <Calculator size={14} className="text-indigo-600 dark:text-indigo-400" />}
+                                  {sector === 'Secretaria' && <FileSpreadsheet size={14} className="text-amber-600 dark:text-amber-400" />}
+                                  {sector === 'Comercial' && <Briefcase size={14} className="text-purple-600 dark:text-purple-400" />}
                                   <span>{sector}</span>
                                 </div>
                               </label>
@@ -4258,8 +4427,8 @@ const AdminView: React.FC<{
                   <form onSubmit={handleBulkCourseSubmit} className="p-6 space-y-4">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-bold text-slate-700">Lista de Aulas ou Arquivo</label>
-                        <label className="cursor-pointer text-xs font-bold text-[#3B82F6] hover:underline flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Lista de Aulas ou Arquivo</label>
+                        <label className="cursor-pointer text-xs font-bold text-[#3B82F6] dark:text-blue-400 hover:underline flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800">
                           <Upload size={13} />
                           Carregar Arquivo (.csv / .txt)
                           <input 
@@ -4270,15 +4439,15 @@ const AdminView: React.FC<{
                           />
                         </label>
                       </div>
-                      <p className="text-xs text-slate-500 mb-2 leading-relaxed">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 leading-relaxed">
                         Cole uma aula por linha. Aceita links do YouTube, Google Drive, OneDrive, Vimeo, Loom ou vídeos diretos.<br />
-                        <span className="font-semibold text-slate-700">Formato:</span> <code className="bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 font-mono text-[11px]">Título | Sistema (7Edu ou TOTVS) | Link do Vídeo | Duração | Link PDF</code>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Formato:</span> <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 font-mono text-[11px]">Título | Sistema (7Edu ou TOTVS) | Link do Vídeo | Duração | Link PDF</code>
                       </p>
                       <textarea 
                         required
                         value={bulkCourseText}
                         onChange={(e) => setBulkCourseText(e.target.value)}
-                        className="w-full h-48 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all resize-none font-mono text-xs text-slate-800"
+                        className="w-full h-48 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all resize-none font-mono text-xs"
                         placeholder="Exemplos:&#10;Gestão Financeira e Contas | TOTVS | https://www.youtube.com/watch?v=dQw4w9WgXcQ | 15 min&#10;Cadastro de Alunos e Matrículas | 7Edu | https://drive.google.com/file/d/1a2b3c/view | 20 min&#10;Emissão de Boletos e Remessa | 7Edu | https://vimeo.com/123456789 | 12 min"
                       />
                     </div>
@@ -4286,7 +4455,7 @@ const AdminView: React.FC<{
                       <button 
                         type="button" 
                         onClick={() => { setIsAdding(false); setIsCourseBulk(false); }}
-                        className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                        className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 py-3.5 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       >
                         Cancelar
                       </button>
@@ -4301,35 +4470,35 @@ const AdminView: React.FC<{
                 ) : (
                   <form onSubmit={handleSubmitCourse} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Título da Aula *</label>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Título da Aula *</label>
                       <input 
                         type="text" 
                         required 
                         value={newCourse.title} 
                         onChange={(e) => setNewCourse({...newCourse, title: e.target.value})} 
                         placeholder="Ex: Como emitir notas fiscais e conciliação bancária"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all font-medium text-slate-900" 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all font-medium text-slate-900 dark:text-white" 
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Sistema *</label>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Sistema *</label>
                         <select 
                           value={newCourse.system} 
                           onChange={(e) => setNewCourse({...newCourse, system: e.target.value as any})} 
-                          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 text-sm focus:ring-2 focus:ring-[#3B82F6]"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-[#3B82F6]"
                         >
                           <option value="7Edu">7Edu</option>
                           <option value="TOTVS">TOTVS</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Dificuldade</label>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Dificuldade</label>
                         <select 
                           value={newCourse.difficulty} 
                           onChange={(e) => setNewCourse({...newCourse, difficulty: e.target.value as any})} 
-                          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 text-sm focus:ring-2 focus:ring-[#3B82F6]"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-slate-800 dark:text-slate-200 text-sm focus:ring-2 focus:ring-[#3B82F6]"
                         >
                           <option value="Iniciante">Iniciante</option>
                           <option value="Intermediário">Intermediário</option>
@@ -4339,7 +4508,7 @@ const AdminView: React.FC<{
                     </div>
 
                     {/* Setores do Treinamento - Seleção Múltipla */}
-                    <div className="border border-blue-200 bg-blue-50/40 dark:bg-blue-950/20 p-3.5 rounded-2xl space-y-2">
+                    <div className="border border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 p-3.5 rounded-2xl space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
                           <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -4394,7 +4563,7 @@ const AdminView: React.FC<{
                               className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all text-left ${
                                 isSelected
                                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                  : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300'
+                                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
                               }`}
                             >
                               <span className="shrink-0">
@@ -4416,33 +4585,33 @@ const AdminView: React.FC<{
                     </div>
 
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Descrição / Resumo da Aula</label>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Descrição / Resumo da Aula</label>
                       <textarea 
                         value={newCourse.description} 
                         onChange={(e) => setNewCourse({...newCourse, description: e.target.value})} 
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all h-16 resize-none text-sm" 
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all h-16 resize-none text-sm" 
                         placeholder="Objetivos e tópicos abordados nesta aula..."
                       />
                     </div>
 
                     {/* Vídeo da Aula - Abas de Link vs Arquivo */}
-                    <div className="border border-slate-200 bg-slate-50/50 p-4 rounded-2xl space-y-3">
+                    <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-2xl space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
-                          <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                          <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                             <Video size={16} className="text-[#3B82F6]" />
                             Vídeo da Aula
-                            <span className="text-[11px] font-normal text-slate-500">(Opcional)</span>
+                            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">(Opcional)</span>
                           </label>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
                             Aulas sem link ou vídeo ficam guardadas como rascunho e só aparecem para os alunos após o vídeo ser importado.
                           </p>
                         </div>
-                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold shrink-0">
+                        <div className="flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-bold shrink-0">
                           <button
                             type="button"
                             onClick={() => setVideoInputMode('link')}
-                            className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 ${videoInputMode === 'link' ? 'bg-white text-[#3B82F6] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                            className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 ${videoInputMode === 'link' ? 'bg-white dark:bg-slate-700 text-[#3B82F6] dark:text-blue-300 shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                           >
                             <Link2 size={13} />
                             Inserir Link
@@ -4450,7 +4619,7 @@ const AdminView: React.FC<{
                           <button
                             type="button"
                             onClick={() => setVideoInputMode('upload')}
-                            className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 ${videoInputMode === 'upload' ? 'bg-white text-[#3B82F6] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                            className={`px-3 py-1 rounded-md transition-all flex items-center gap-1 ${videoInputMode === 'upload' ? 'bg-white dark:bg-slate-700 text-[#3B82F6] dark:text-blue-300 shadow-sm' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                           >
                             <FileUp size={13} />
                             Subir Arquivo
@@ -4465,25 +4634,25 @@ const AdminView: React.FC<{
                               type="text" 
                               value={newCourse.videoUrl} 
                               onChange={(e) => setNewCourse({...newCourse, videoUrl: e.target.value})} 
-                              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono text-slate-800 pr-24" 
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none transition-all text-sm font-mono pr-24" 
                               placeholder="Cole o link: YouTube, Google Drive, OneDrive, Vimeo, MP4..." 
                             />
                             {newCourse.videoUrl && (
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
                                 {getUrlType(newCourse.videoUrl)}
                               </span>
                             )}
                           </div>
-                          <div className="flex flex-wrap gap-1 text-[11px] text-slate-500">
-                            <span className="font-semibold text-slate-700">Compatível com:</span>
+                          <div className="flex flex-wrap gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Compatível com:</span>
                             {['YouTube', 'Google Drive', 'OneDrive', 'SharePoint', 'Vimeo', 'Loom', 'Supabase', 'MP4 direto'].map(p => (
-                              <span key={p} className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-600">✓ {p}</span>
+                              <span key={p} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded text-[10px] text-slate-600 dark:text-slate-300">✓ {p}</span>
                             ))}
                           </div>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          <label className={`border-2 border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/50 hover:bg-blue-50 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <label className={`border-2 border-dashed border-blue-300 dark:border-blue-700/80 hover:border-blue-500 dark:hover:border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                             <input 
                               type="file" 
                               className="hidden" 
@@ -4494,24 +4663,24 @@ const AdminView: React.FC<{
                                 if (file) handleFileUpload(file, 'video');
                               }}
                             />
-                            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2">
+                            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 flex items-center justify-center mb-2">
                               {isUploading ? <Loader2 size={22} className="animate-spin" /> : <Upload size={22} />}
                             </div>
-                            <span className="text-sm font-bold text-slate-800">
+                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
                               {isUploading ? 'Processando e enviando...' : 'Clique para selecionar o vídeo ou arraste aqui'}
                             </span>
-                            <span className="text-xs text-slate-500 mt-0.5">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                               Formatos suportados: MP4, WebM, MOV, OGG (até 300MB)
                             </span>
                           </label>
 
                           {isUploading && (
-                            <div className="space-y-1.5 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
-                              <div className="flex justify-between text-xs font-semibold text-slate-700">
+                            <div className="space-y-1.5 bg-white dark:bg-slate-900 p-3 rounded-xl border border-blue-100 dark:border-slate-800 shadow-sm">
+                              <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                                 <span>{uploadStatus || 'Enviando...'}</span>
-                                <span className="text-blue-600">{uploadProgress}%</span>
+                                <span className="text-blue-600 dark:text-blue-400">{uploadProgress}%</span>
                               </div>
-                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                 <div 
                                   className="h-full bg-[#3B82F6] transition-all duration-300 rounded-full" 
                                   style={{ width: `${uploadProgress}%` }}
@@ -4521,12 +4690,12 @@ const AdminView: React.FC<{
                           )}
 
                           {newCourse.videoUrl && !isUploading && (
-                            <div className="flex items-center justify-between text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-xl font-medium">
+                            <div className="flex items-center justify-between text-xs bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 p-2.5 rounded-xl font-medium">
                               <span className="flex items-center gap-1.5 truncate">
-                                <Check size={14} className="text-emerald-600 shrink-0" />
+                                <Check size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 Vídeo pronto para a aula!
                               </span>
-                              <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold shrink-0">
+                              <span className="text-[10px] bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-100 px-2 py-0.5 rounded font-bold shrink-0">
                                 Carregado
                               </span>
                             </div>
@@ -4570,7 +4739,7 @@ const AdminView: React.FC<{
                     {/* Material de Apoio (PDF / Documentos) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                           <FileText size={15} className="text-[#3B82F6]" />
                           Material de Apoio (PDF / Documento)
                         </label>
@@ -4581,10 +4750,10 @@ const AdminView: React.FC<{
                           type="text" 
                           value={newCourse.pdfUrl} 
                           onChange={(e) => setNewCourse({...newCourse, pdfUrl: e.target.value})} 
-                          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none text-sm text-slate-800" 
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-[#3B82F6] focus:border-transparent outline-none text-sm" 
                           placeholder="Link do PDF ou arquivo..." 
                         />
-                        <label className={`cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 border border-slate-200 text-xs font-bold transition-colors whitespace-nowrap ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <label className={`cursor-pointer bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 text-xs font-bold transition-colors whitespace-nowrap ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                           <Upload size={14} />
                           Subir PDF
                           <input 
@@ -4603,23 +4772,23 @@ const AdminView: React.FC<{
 
                     <div className="grid grid-cols-2 gap-3 pt-1">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Duração Estimada</label>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Duração Estimada</label>
                         <input 
                           type="text" 
                           value={newCourse.duration} 
                           onChange={(e) => setNewCourse({...newCourse, duration: e.target.value})} 
                           placeholder="Ex: 15 min"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" 
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm" 
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Capa / Thumbnail (URL)</label>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Capa / Thumbnail (URL)</label>
                         <input 
                           type="text" 
                           value={newCourse.thumbnail} 
                           onChange={(e) => setNewCourse({...newCourse, thumbnail: e.target.value})} 
                           placeholder="Deixe em branco para automático"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm" 
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm" 
                         />
                       </div>
                     </div>
