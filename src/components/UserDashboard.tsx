@@ -651,7 +651,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                             ? isDark ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800/60' : 'bg-indigo-100 text-indigo-900 border-indigo-200'
                             : isDark ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60' : 'bg-emerald-100 text-emerald-900 border-emerald-200'
                         }`}>
-                          {course.system} {course.sector ? `• ${course.sector}` : ''} • {course.duration}
+                          {course.system} {course.sectors && course.sectors.length > 0 ? `• ${course.sectors.join(' • ')}` : (course.sector ? `• ${course.sector}` : '')} • {course.duration}
                         </span>
                         <h5 className="text-xs font-black text-slate-900 dark:text-white line-clamp-1 mt-1">
                           {course.title}

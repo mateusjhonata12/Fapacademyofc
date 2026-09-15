@@ -9,6 +9,7 @@ export interface Course {
   title: string;
   system: SystemType;
   sector?: SectorType;
+  sectors?: SectorType[];
   duration: string;
   difficulty: 'Iniciante' | 'Intermediário' | 'Avançado';
   thumbnail: string;
@@ -17,6 +18,20 @@ export interface Course {
   createdAt?: number;
   description?: string;
 }
+
+export const getCourseSectors = (course: Partial<Course>): SectorType[] => {
+  if (course.sectors && Array.isArray(course.sectors) && course.sectors.length > 0) {
+    return course.sectors;
+  }
+  if (course.sector) {
+    return [course.sector];
+  }
+  return ['Finanças'];
+};
+
+export const hasCourseVideo = (course: Partial<Course>): boolean => {
+  return Boolean(course.videoUrl && course.videoUrl.trim() !== '');
+};
 
 export interface User {
   id: string;

@@ -63,7 +63,8 @@ import {
   Lock,
   ShieldAlert,
   Filter,
-  Layers
+  Layers,
+  VideoOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AIAssistant } from './lib/AIAssistant';
@@ -157,6 +158,7 @@ interface Course {
   title: string;
   system: '7Edu' | 'TOTVS';
   sector?: SectorType;
+  sectors?: SectorType[];
   duration: string;
   difficulty: 'Iniciante' | 'Intermediário' | 'Avançado';
   thumbnail: string;
@@ -165,6 +167,20 @@ interface Course {
   createdAt?: number;
   description?: string;
 }
+
+const getCourseSectors = (course: Partial<Course>): SectorType[] => {
+  if (course.sectors && Array.isArray(course.sectors) && course.sectors.length > 0) {
+    return course.sectors;
+  }
+  if (course.sector) {
+    return [course.sector];
+  }
+  return ['Finanças'];
+};
+
+const hasCourseVideo = (course: Partial<Course>): boolean => {
+  return Boolean(course.videoUrl && course.videoUrl.trim() !== '');
+};
 
 interface SidebarItemProps {
   icon: React.ReactNode;
@@ -1170,17 +1186,26 @@ export default function App() {
 
   const [selectedSectorFilter, setSelectedSectorFilter] = useState<SectorType | 'Todos'>('Todos');
 
+  // Apenas cursos com vídeo ativo ficam disponíveis para estudo/visualização
+  // (aulas sem vídeo são rascunhos em preparação visíveis somente no painel administrativo)
+  const publishedCourses = useMemo(() => {
+    return courses.filter(hasCourseVideo);
+  }, [courses]);
+
   // Cursos acessíveis pelo usuário logado conforme permissões de setor
   const userAccessibleCourses = useMemo(() => {
-    if (isAdmin) return courses;
-    return courses.filter(course => userAllowedSectors.includes(course.sector || 'Finanças'));
-  }, [isAdmin, courses, userAllowedSectors]);
+    if (isAdmin) return publishedCourses;
+    return publishedCourses.filter(course => {
+      const cSectors = getCourseSectors(course);
+      return userAllowedSectors.some(sec => cSectors.includes(sec));
+    });
+  }, [isAdmin, publishedCourses, userAllowedSectors]);
 
   // --- Lógica de Filtro ---
   const filteredCourses = useMemo(() => {
     return userAccessibleCourses
       .filter(course => {
-        const courseSector = course.sector || 'Finanças';
+        const cSectors = getCourseSectors(course);
         
         let matchesTab = true;
         if (activeTab === 'Todos' || activeTab === 'Home') {
@@ -1188,18 +1213,18 @@ export default function App() {
         } else if (activeTab === '7Edu' || activeTab === 'TOTVS') {
           matchesTab = course.system === activeTab;
         } else if (SECTORS.includes(activeTab as any)) {
-          matchesTab = courseSector === activeTab;
+          matchesTab = cSectors.includes(activeTab as SectorType);
         }
 
         let matchesSectorFilter = true;
         if (selectedSectorFilter !== 'Todos') {
-          matchesSectorFilter = courseSector === selectedSectorFilter;
+          matchesSectorFilter = cSectors.includes(selectedSectorFilter);
         }
 
         const queryLower = searchQuery.toLowerCase().trim();
         const matchesSearch = !queryLower || 
           course.title.toLowerCase().includes(queryLower) ||
-          courseSector.toLowerCase().includes(queryLower) ||
+          cSectors.some(s => s.toLowerCase().includes(queryLower)) ||
           course.system.toLowerCase().includes(queryLower) ||
           (course.description && course.description.toLowerCase().includes(queryLower));
 
@@ -1331,7 +1356,7 @@ export default function App() {
             </div>
             {SECTORS.map((sector) => {
               const isAllowed = userAllowedSectors.includes(sector);
-              const sectorCoursesCount = courses.filter(c => (c.sector || 'Finanças') === sector).length;
+              const sectorCoursesCount = publishedCourses.filter(c => getCourseSectors(c).includes(sector)).length;
               
               const icon = sector === 'Finanças' ? <DollarSign size={20} className={isAllowed ? "text-emerald-400" : "text-slate-500"} />
                 : sector === 'Contabilidade' ? <Calculator size={20} className={isAllowed ? "text-indigo-400" : "text-slate-500"} />
@@ -1845,7 +1870,7 @@ export default function App() {
                         </button>
                         {SECTORS.map(sec => {
                           const isAllowed = userAllowedSectors.includes(sec);
-                          const count = userAccessibleCourses.filter(c => (c.sector || 'Finanças') === sec).length;
+                          const count = userAccessibleCourses.filter(c => getCourseSectors(c).includes(sec)).length;
                           return (
                             <button
                               key={sec}
@@ -2339,7 +2364,7 @@ const HomeView: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {SECTORS.map((sector) => {
               const isAllowed = isAdmin || (userAllowedSectors && userAllowedSectors.includes(sector));
-              const sectorCourses = courses.filter(c => (c.sector || 'Finanças') === sector);
+              const sectorCourses = courses.filter(c => hasCourseVideo(c) && getCourseSectors(c).includes(sector));
               const sectorCompleted = sectorCourses.filter(c => completedCourses.includes(c.id)).length;
               const sectorPct = sectorCourses.length > 0 ? Math.round((sectorCompleted / sectorCourses.length) * 100) : 0;
 
@@ -2643,16 +2668,16 @@ const CourseCard: React.FC<CourseCardProps> = ({ course, isCompleted, onToggleCo
           }`}>
             {course.system}
           </span>
-          {course.sector && (
-            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ${
-              course.sector === 'Finanças' ? 'bg-emerald-700' :
-              course.sector === 'Contabilidade' ? 'bg-indigo-700' :
-              course.sector === 'Secretaria' ? 'bg-amber-600' :
+          {getCourseSectors(course).map(sec => (
+            <span key={sec} className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ${
+              sec === 'Finanças' ? 'bg-emerald-700' :
+              sec === 'Contabilidade' ? 'bg-indigo-700' :
+              sec === 'Secretaria' ? 'bg-amber-600' :
               'bg-purple-700'
             }`}>
-              {course.sector}
+              {sec}
             </span>
-          )}
+          ))}
           {course.pdfUrl && (
             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center gap-1 ${
               theme === 'dark' ? 'bg-slate-800/90 text-slate-200' : 'bg-white/90 text-slate-900'
@@ -2945,6 +2970,7 @@ const AdminView: React.FC<{
     title: '', 
     system: '7Edu', 
     sector: 'Finanças',
+    sectors: ['Finanças'],
     duration: '', 
     difficulty: 'Iniciante', 
     thumbnail: '', 
@@ -3300,9 +3326,14 @@ const AdminView: React.FC<{
       return;
     }
 
-    const cleanVideoUrl = normalizeVideoUrl(newCourse.videoUrl || '');
-    if (!cleanVideoUrl || !isValidVideoUrl(cleanVideoUrl)) {
-      alert("Por favor, insira o link do vídeo ou envie um arquivo de vídeo (MP4/WebM) para a aula.");
+    const selectedSectors = (newCourse.sectors && newCourse.sectors.length > 0)
+      ? newCourse.sectors
+      : (newCourse.sector ? [newCourse.sector] : ['Finanças']);
+
+    // O vídeo é OPCIONAL: se não for fornecido, a aula é salva como rascunho e não aparece para os alunos
+    const cleanVideoUrl = newCourse.videoUrl?.trim() ? normalizeVideoUrl(newCourse.videoUrl.trim()) : '';
+    if (cleanVideoUrl && !isValidVideoUrl(cleanVideoUrl)) {
+      alert("O link de vídeo fornecido não é válido. Verifique a URL ou deixe em branco para adicionar o vídeo posteriormente.");
       return;
     }
 
@@ -3315,13 +3346,14 @@ const AdminView: React.FC<{
     );
 
     const finalDuration = newCourse.duration?.trim() || "15 min";
-    const finalDescription = newCourse.description?.trim() || `Material didático e procedimentos práticos no setor ${newCourse.sector || 'Finanças'} (${newCourse.system}).`;
+    const finalDescription = newCourse.description?.trim() || `Material didático e procedimentos práticos no setor ${selectedSectors.join(', ')} (${newCourse.system}).`;
 
     const courseData: Course = {
       id: editingCourse ? editingCourse.id : `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       title: newCourse.title.trim(),
       system: newCourse.system,
-      sector: newCourse.sector || 'Finanças',
+      sector: selectedSectors[0],
+      sectors: selectedSectors,
       duration: finalDuration,
       difficulty: newCourse.difficulty,
       thumbnail: finalThumbnail,
@@ -3334,12 +3366,16 @@ const AdminView: React.FC<{
     try {
       if (editingCourse) {
         onUpdateCourse(courseData);
-        alert("Vídeo-aula atualizada com sucesso!");
+        alert(cleanVideoUrl 
+          ? "Aula atualizada com sucesso!" 
+          : "Aula salva com sucesso! Como ainda não possui vídeo, ela permanecerá oculta para os alunos até a adição do vídeo.");
       } else {
         onAddCourse(courseData);
-        alert("Vídeo-aula cadastrada com sucesso!");
+        alert(cleanVideoUrl 
+          ? "Aula cadastrada com sucesso!" 
+          : "Aula cadastrada com sucesso! Como ainda não possui vídeo, ela permanecerá oculta para os alunos até que o vídeo seja importado.");
       }
-      setNewCourse({ title: '', system: '7Edu', sector: 'Finanças', duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' });
+      setNewCourse({ title: '', system: '7Edu', sector: 'Finanças', sectors: ['Finanças'], duration: '', difficulty: 'Iniciante', thumbnail: '', videoUrl: '', pdfUrl: '', description: '' });
       setIsAdding(false);
       setEditingCourse(null);
     } catch (err: any) {
@@ -3364,10 +3400,12 @@ const AdminView: React.FC<{
 
   const handleEditCourse = (course: Course) => {
     setEditingCourse(course);
+    const sectors = getCourseSectors(course);
     setNewCourse({ 
       title: course.title, 
       system: course.system, 
-      sector: course.sector || 'Finanças',
+      sector: sectors[0] || 'Finanças',
+      sectors: sectors,
       duration: course.duration, 
       difficulty: course.difficulty, 
       thumbnail: course.thumbnail,
@@ -3447,34 +3485,34 @@ const AdminView: React.FC<{
           pdfUrl = parts[4] || '';
         }
 
-        let sector: SectorType = 'Finanças';
+        const detectedSectors: SectorType[] = [];
         parts.forEach(part => {
           const lower = part.toLowerCase();
-          if (lower.includes('contabil') || lower.includes('contabilidade')) sector = 'Contabilidade';
-          else if (lower.includes('secretar') || lower.includes('secretaria')) sector = 'Secretaria';
-          else if (lower.includes('comercial')) sector = 'Comercial';
-          else if (lower.includes('finan') || lower.includes('finanças') || lower.includes('financas')) sector = 'Finanças';
+          if ((lower.includes('contabil') || lower.includes('contabilidade')) && !detectedSectors.includes('Contabilidade')) detectedSectors.push('Contabilidade');
+          if ((lower.includes('secretar') || lower.includes('secretaria')) && !detectedSectors.includes('Secretaria')) detectedSectors.push('Secretaria');
+          if (lower.includes('comercial') && !detectedSectors.includes('Comercial')) detectedSectors.push('Comercial');
+          if ((lower.includes('finan') || lower.includes('finanças') || lower.includes('financas')) && !detectedSectors.includes('Finanças')) detectedSectors.push('Finanças');
         });
+        const finalSectors = detectedSectors.length > 0 ? detectedSectors : ['Finanças'];
 
-        const cleanVideo = normalizeVideoUrl(videoUrl);
-        if (cleanVideo) {
-          onAddCourse({
-            id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-            title,
-            system,
-            sector,
-            duration: duration || "15 min",
-            difficulty: 'Iniciante',
-            thumbnail: system === '7Edu'
-              ? "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
-              : "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80",
-            videoUrl: cleanVideo,
-            pdfUrl: pdfUrl ? normalizeVideoUrl(pdfUrl) : '',
-            description: `Procedimentos e rotinas práticas no setor ${sector} (${system}).`,
-            createdAt: Date.now()
-          });
-          addedCount++;
-        }
+        const cleanVideo = videoUrl ? normalizeVideoUrl(videoUrl) : '';
+        onAddCourse({
+          id: `course_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+          title,
+          system,
+          sector: finalSectors[0],
+          sectors: finalSectors,
+          duration: duration || "15 min",
+          difficulty: 'Iniciante',
+          thumbnail: system === '7Edu'
+            ? "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80"
+            : "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80",
+          videoUrl: cleanVideo,
+          pdfUrl: pdfUrl ? normalizeVideoUrl(pdfUrl) : '',
+          description: `Procedimentos e rotinas práticas no setor ${finalSectors.join(', ')} (${system}).`,
+          createdAt: Date.now()
+        });
+        addedCount++;
       }
     });
 
@@ -3728,7 +3766,7 @@ const AdminView: React.FC<{
                   TOTVS: {totvsCourses.length}
                 </span>
                 {SECTORS.map(sec => {
-                  const cnt = courses.filter(c => (c.sector || 'Finanças') === sec).length;
+                  const cnt = courses.filter(c => getCourseSectors(c).includes(sec)).length;
                   return (
                     <span key={sec} className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {sec}: {cnt}
@@ -3776,15 +3814,26 @@ const AdminView: React.FC<{
                             <span className={`font-bold text-sm truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`} title={course.title}>
                               {course.title}
                             </span>
-                            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                course.sector === 'Contabilidade' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
-                                course.sector === 'Secretaria' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
-                                course.sector === 'Comercial' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
-                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              }`}>
-                                {course.sector || 'Finanças'}
-                              </span>
+                            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5 flex-wrap">
+                              {getCourseSectors(course).map(sec => (
+                                <span key={sec} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  sec === 'Contabilidade' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+                                  sec === 'Secretaria' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                  sec === 'Comercial' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
+                                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                }`}>
+                                  {sec}
+                                </span>
+                              ))}
+                              {!hasCourseVideo(course) ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1">
+                                  <VideoOff size={11} /> Sem Vídeo (Oculto)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+                                  <Video size={11} /> Publicado
+                                </span>
+                              )}
                               <span>•</span>
                               <span>{course.difficulty}</span>
                               {course.duration && (
@@ -3856,15 +3905,26 @@ const AdminView: React.FC<{
                             <span className={`font-bold text-sm truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`} title={course.title}>
                               {course.title}
                             </span>
-                            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                course.sector === 'Contabilidade' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
-                                course.sector === 'Secretaria' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
-                                course.sector === 'Comercial' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
-                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              }`}>
-                                {course.sector || 'Finanças'}
-                              </span>
+                            <div className="flex items-center gap-2 text-xs text-slate-400 font-medium mt-0.5 flex-wrap">
+                              {getCourseSectors(course).map(sec => (
+                                <span key={sec} className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  sec === 'Contabilidade' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+                                  sec === 'Secretaria' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                                  sec === 'Comercial' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
+                                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                }`}>
+                                  {sec}
+                                </span>
+                              ))}
+                              {!hasCourseVideo(course) ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1">
+                                  <VideoOff size={11} /> Sem Vídeo (Oculto)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+                                  <Video size={11} /> Publicado
+                                </span>
+                              )}
                               <span>•</span>
                               <span>{course.difficulty}</span>
                               {course.duration && (
@@ -4252,9 +4312,9 @@ const AdminView: React.FC<{
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Sistema</label>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Sistema *</label>
                         <select 
                           value={newCourse.system} 
                           onChange={(e) => setNewCourse({...newCourse, system: e.target.value as any})} 
@@ -4262,19 +4322,6 @@ const AdminView: React.FC<{
                         >
                           <option value="7Edu">7Edu</option>
                           <option value="TOTVS">TOTVS</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Setor do Treinamento *</label>
-                        <select 
-                          value={newCourse.sector || 'Finanças'} 
-                          onChange={(e) => setNewCourse({...newCourse, sector: e.target.value as any})} 
-                          className="w-full px-3 py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 font-bold text-[#2563EB] text-sm focus:ring-2 focus:ring-[#3B82F6]"
-                        >
-                          <option value="Finanças">💰 Finanças</option>
-                          <option value="Contabilidade">📊 Contabilidade</option>
-                          <option value="Secretaria">📋 Secretaria</option>
-                          <option value="Comercial">💼 Comercial</option>
                         </select>
                       </div>
                       <div>
@@ -4291,6 +4338,83 @@ const AdminView: React.FC<{
                       </div>
                     </div>
 
+                    {/* Setores do Treinamento - Seleção Múltipla */}
+                    <div className="border border-blue-200 bg-blue-50/40 dark:bg-blue-950/20 p-3.5 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Setores do Treinamento * <span className="font-normal text-[11px] text-blue-700 dark:text-blue-400">(Selecione 1 ou mais setores para a aula aparecer em outros setores)</span>
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = newCourse.sectors && newCourse.sectors.length > 0 ? newCourse.sectors : ['Finanças'];
+                            const allSelected = current.length === SECTORS.length;
+                            setNewCourse({
+                              ...newCourse,
+                              sector: 'Finanças',
+                              sectors: allSelected ? ['Finanças'] : [...SECTORS]
+                            });
+                          }}
+                          className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {(newCourse.sectors || ['Finanças']).length === SECTORS.length ? 'Apenas 1 Setor' : 'Marcar Todos'}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        {SECTORS.map((sector) => {
+                          const currentSectors = newCourse.sectors && newCourse.sectors.length > 0 
+                            ? newCourse.sectors 
+                            : (newCourse.sector ? [newCourse.sector] : ['Finanças']);
+                          const isSelected = currentSectors.includes(sector);
+
+                          return (
+                            <button
+                              key={sector}
+                              type="button"
+                              onClick={() => {
+                                let next: SectorType[];
+                                if (isSelected) {
+                                  if (currentSectors.length === 1) {
+                                    alert("A aula precisa pertencer a pelo menos 1 setor.");
+                                    return;
+                                  }
+                                  next = currentSectors.filter(s => s !== sector);
+                                } else {
+                                  next = [...currentSectors, sector];
+                                }
+                                setNewCourse({
+                                  ...newCourse,
+                                  sector: next[0],
+                                  sectors: next
+                                });
+                              }}
+                              className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all text-left ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300'
+                              }`}
+                            >
+                              <span className="shrink-0">
+                                {sector === 'Finanças' && '💰'}
+                                {sector === 'Contabilidade' && '📊'}
+                                {sector === 'Secretaria' && '📋'}
+                                {sector === 'Comercial' && '💼'}
+                              </span>
+                              <span className="truncate flex-1">{sector}</span>
+                              {isSelected ? (
+                                <Check size={14} className="shrink-0 text-white" />
+                              ) : (
+                                <Plus size={14} className="shrink-0 text-slate-400" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-1">Descrição / Resumo da Aula</label>
                       <textarea 
@@ -4303,12 +4427,18 @@ const AdminView: React.FC<{
 
                     {/* Vídeo da Aula - Abas de Link vs Arquivo */}
                     <div className="border border-slate-200 bg-slate-50/50 p-4 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                          <Video size={16} className="text-[#3B82F6]" />
-                          Vídeo da Aula *
-                        </label>
-                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <Video size={16} className="text-[#3B82F6]" />
+                            Vídeo da Aula
+                            <span className="text-[11px] font-normal text-slate-500">(Opcional)</span>
+                          </label>
+                          <p className="text-[11px] text-slate-500">
+                            Aulas sem link ou vídeo ficam guardadas como rascunho e só aparecem para os alunos após o vídeo ser importado.
+                          </p>
+                        </div>
+                        <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-bold shrink-0">
                           <button
                             type="button"
                             onClick={() => setVideoInputMode('link')}
@@ -4507,7 +4637,9 @@ const AdminView: React.FC<{
                       ) : (
                         <>
                           <Check size={18} />
-                          {editingCourse ? 'Salvar Alterações da Aula' : 'Cadastrar e Publicar Aula'}
+                          {editingCourse 
+                            ? (newCourse.videoUrl?.trim() ? 'Salvar Alterações da Aula' : 'Salvar Alterações (Rascunho sem Vídeo)') 
+                            : (newCourse.videoUrl?.trim() ? 'Cadastrar e Publicar Aula' : 'Salvar Aula como Rascunho (Sem Vídeo)')}
                         </>
                       )}
                     </button>
