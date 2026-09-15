@@ -1409,7 +1409,9 @@ export default function App() {
             />
             
             <div className="pt-2.5 pb-1">
-              <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">Setores</p>
+              <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">
+                Setores
+              </p>
             </div>
             {SECTORS.map((sector) => {
               const isAllowed = userAllowedSectors.includes(sector);
@@ -1428,7 +1430,7 @@ export default function App() {
                   active={activeTab === sector} 
                   badge={
                     !isAllowed ? (
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded bg-red-950/70 text-red-300 border border-red-800/80 flex items-center gap-1 shadow-xs shrink-0">
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded flex items-center gap-1 shadow-xs shrink-0 bg-red-950/70 text-red-300 border border-red-800/80">
                         <Lock size={10} /> Restrito
                       </span>
                     ) : (
@@ -1455,7 +1457,9 @@ export default function App() {
             })}
 
             <div className="pt-2.5 pb-1">
-              <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">Sistemas</p>
+              <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">
+                Sistemas
+              </p>
             </div>
             <SidebarItem 
               icon={<BookOpen size={18} />} 
@@ -1473,7 +1477,9 @@ export default function App() {
             {currentUser && (currentUser.role?.toLowerCase() === 'admin' || currentUser.email === 'mateusjhonata123@gmail.com') && (
                 <>
                   <div className="pt-2.5 pb-1">
-                    <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">Administração</p>
+                    <p className="px-3 text-[10px] font-black uppercase tracking-wider text-blue-300/70">
+                      Administração
+                    </p>
                   </div>
                   <SidebarItem 
                     icon={<Users size={18} />} 
@@ -1516,13 +1522,15 @@ export default function App() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Seu Progresso
                 </span>
-                <span className="text-xs font-black text-blue-400">{progressPercentage}%</span>
+                <span className="text-xs font-black text-blue-400">
+                  {progressPercentage}%
+                </span>
               </div>
               <div className="h-1.5 w-full rounded-full overflow-hidden bg-blue-950 border border-blue-900/40">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${progressPercentage}%` }}
-                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
                 />
               </div>
               <p className="mt-1 text-[10px] text-slate-400">
@@ -1532,8 +1540,8 @@ export default function App() {
 
             {/* User Profile / Login (Final da Barra Lateral) */}
             <div className="p-3 border-t border-blue-900/40 bg-[#070F20]">
-              <div className="flex items-center gap-2.5 rounded-xl p-2 border border-blue-900/50 bg-blue-950/40 hover:bg-blue-950/60 transition-colors shadow-sm">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm">
+              <div className="flex items-center gap-2.5 rounded-xl p-2 border border-blue-900/50 bg-blue-950/40 hover:bg-blue-950/60 transition-all shadow-sm">
+                <div className="h-8 w-8 rounded-lg flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm bg-gradient-to-tr from-blue-600 to-indigo-600">
                   {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'US'}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1543,7 +1551,7 @@ export default function App() {
                   <p className="truncate text-[10px] leading-tight text-slate-400">
                     {currentUser?.email}
                   </p>
-                  <p className="truncate text-[9px] text-blue-400 font-bold mt-0.5">
+                  <p className="truncate text-[9px] font-bold mt-0.5 text-blue-400">
                     {isAdmin ? 'Acesso Global' : userAllowedSectors.join(' • ')}
                   </p>
                 </div>
@@ -2412,7 +2420,7 @@ const HomeView: React.FC<{
       </section>
 
       {/* Seção de Escolha de Setores da Instituição */}
-      <section className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0E1526] border-slate-800' : 'bg-white border-slate-200/80'}`}>
+      <section className={`py-16 px-4 lg:px-8 border-t transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0E1526] border-slate-800' : 'bg-gradient-to-b from-blue-50/50 via-slate-50/50 to-white border-blue-100/80'}`}>
         <div className="max-w-7xl mx-auto w-full">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -2420,7 +2428,7 @@ const HomeView: React.FC<{
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+            <span className="text-xs font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800">
               Departamentos Institucionais
             </span>
             <h2 className={`font-display text-3xl font-black mt-3 mb-3 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
@@ -2440,32 +2448,36 @@ const HomeView: React.FC<{
 
               const meta = sector === 'Finanças' 
                 ? {
-                    icon: <DollarSign size={24} className={theme === 'dark' ? "text-emerald-400" : "text-emerald-600"} />,
-                    iconBg: theme === 'dark' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200 text-emerald-600',
-                    gradient: 'from-emerald-900/40 via-slate-900 to-slate-950',
+                    icon: <DollarSign size={24} className={theme === 'dark' ? "text-emerald-400" : "text-emerald-300"} />,
+                    iconBg: theme === 'dark' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/15 border-white/25 text-white',
+                    darkGradient: 'from-emerald-900/40 via-slate-900 to-slate-950',
+                    lightGradient: 'from-blue-600 via-blue-700 to-indigo-900',
                     border: 'border-emerald-500/40',
                     desc: 'Boletos, descontos condicionais, devoluções, baixas bancárias e conciliação.'
                   }
                 : sector === 'Contabilidade'
                 ? {
-                    icon: <Calculator size={24} className={theme === 'dark' ? "text-indigo-400" : "text-indigo-600"} />,
-                    iconBg: theme === 'dark' ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200 text-indigo-600',
-                    gradient: 'from-indigo-900/40 via-slate-900 to-slate-950',
+                    icon: <Calculator size={24} className={theme === 'dark' ? "text-indigo-400" : "text-sky-200"} />,
+                    iconBg: theme === 'dark' ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/15 border-white/25 text-white',
+                    darkGradient: 'from-indigo-900/40 via-slate-900 to-slate-950',
+                    lightGradient: 'from-blue-600 via-indigo-600 to-blue-900',
                     border: 'border-indigo-500/40',
                     desc: 'Relatórios gerenciais contábeis, lançamentos e parametrizações operacionais.'
                   }
                 : sector === 'Secretaria'
                 ? {
-                    icon: <FileSpreadsheet size={24} className={theme === 'dark' ? "text-amber-400" : "text-amber-600"} />,
-                    iconBg: theme === 'dark' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200 text-amber-600',
-                    gradient: 'from-amber-900/40 via-slate-900 to-slate-950',
+                    icon: <FileSpreadsheet size={24} className={theme === 'dark' ? "text-amber-400" : "text-amber-300"} />,
+                    iconBg: theme === 'dark' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-white/15 border-white/25 text-white',
+                    darkGradient: 'from-amber-900/40 via-slate-900 to-slate-950',
+                    lightGradient: 'from-blue-700 via-blue-800 to-indigo-950',
                     border: 'border-amber-500/40',
                     desc: 'Contratos acadêmicos, matrículas, bolsas dissídio e registros de estudantes.'
                   }
                 : {
-                    icon: <Briefcase size={24} className={theme === 'dark' ? "text-purple-400" : "text-purple-600"} />,
-                    iconBg: theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-purple-50 border-purple-200 text-purple-600',
-                    gradient: 'from-purple-900/40 via-slate-900 to-slate-950',
+                    icon: <Briefcase size={24} className={theme === 'dark' ? "text-purple-400" : "text-purple-200"} />,
+                    iconBg: theme === 'dark' ? 'bg-purple-500/10 border-purple-500/30' : 'bg-white/15 border-white/25 text-white',
+                    darkGradient: 'from-purple-900/40 via-slate-900 to-slate-950',
+                    lightGradient: 'from-blue-600 via-indigo-700 to-purple-950',
                     border: 'border-purple-500/40',
                     desc: 'Captação, negociações comerciais, atendimento e propostas educacionais.'
                   };
@@ -2482,12 +2494,12 @@ const HomeView: React.FC<{
                   }}
                   className={`group relative overflow-hidden rounded-2xl border p-6 text-left transition-all duration-300 flex flex-col justify-between shadow-lg ${
                     isAllowed 
-                      ? 'hover:-translate-y-1.5 hover:shadow-xl active:scale-95 cursor-pointer' 
+                      ? 'hover:-translate-y-1.5 hover:shadow-2xl active:scale-95 cursor-pointer' 
                       : 'opacity-70 cursor-not-allowed'
                   } ${
                     theme === 'dark' 
-                      ? `bg-gradient-to-br ${meta.gradient} ${meta.border} text-white` 
-                      : `bg-white border-slate-200/90 text-slate-900 hover:border-blue-300 shadow-slate-200/50`
+                      ? `bg-gradient-to-br ${meta.darkGradient} ${meta.border} text-white` 
+                      : `bg-gradient-to-br ${meta.lightGradient} border-blue-400/40 text-white shadow-xl shadow-blue-700/25 hover:border-blue-300 hover:shadow-2xl hover:shadow-blue-600/35`
                   }`}
                 >
                   <div>
@@ -2499,7 +2511,7 @@ const HomeView: React.FC<{
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                           theme === 'dark'
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-white/20 backdrop-blur-md text-white border-white/30'
                         }`}>
                           {sectorCourses.length} {sectorCourses.length === 1 ? 'Aula' : 'Aulas'}
                         </span>
@@ -2507,32 +2519,38 @@ const HomeView: React.FC<{
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border flex items-center gap-1 ${
                           theme === 'dark'
                             ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                            : 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-red-500/30 text-red-100 border-red-400/40'
                         }`}>
                           <Lock size={10} /> Restrito
                         </span>
                       )}
                     </div>
                     
-                    <h3 className={`font-display text-lg font-bold mb-1.5 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+                    <h3 className="font-display text-lg font-bold mb-1.5 text-white">
                       {sector}
                     </h3>
-                    <p className={`text-xs leading-relaxed mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`text-xs leading-relaxed mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-blue-100/90'}`}>
                       {meta.desc}
                     </p>
                   </div>
 
-                  <div className="pt-3 border-t border-white/10 dark:border-white/10 border-slate-100 flex items-center justify-between text-xs">
+                  <div className="pt-3 border-t border-white/15 flex items-center justify-between text-xs">
                     {isAllowed ? (
                       <>
-                        <span className="font-semibold text-slate-400">Concluído: <b className={theme === 'dark' ? 'text-white' : 'text-slate-900'}>{sectorPct}%</b></span>
-                        <div className="flex items-center gap-1 font-bold text-blue-500 group-hover:translate-x-0.5 transition-transform">
+                        <span className={theme === 'dark' ? "font-semibold text-slate-400" : "font-semibold text-blue-200"}>
+                          Concluído: <b className="text-white">{sectorPct}%</b>
+                        </span>
+                        <div className={`flex items-center gap-1 font-bold ${
+                          theme === 'dark' ? 'text-blue-400' : 'text-white group-hover:text-blue-200'
+                        } group-hover:translate-x-0.5 transition-transform`}>
                           <span>Acessar</span>
                           <ArrowRight size={14} />
                         </div>
                       </>
                     ) : (
-                      <span className="text-[11px] text-slate-500 italic">Requer autorização</span>
+                      <span className={`text-[11px] italic ${theme === 'dark' ? 'text-slate-500' : 'text-blue-200/80'}`}>
+                        Requer autorização
+                      </span>
                     )}
                   </div>
                 </button>
